@@ -1,0 +1,3 @@
+(fp_lib_table
+  (lib (name "himax")(type "KiCad")(uri "${KIPRJMOD}/himax.pretty")(options "")(descr ""))
+)

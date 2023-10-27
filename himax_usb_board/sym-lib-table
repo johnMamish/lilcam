@@ -1,0 +1,5 @@
+(sym_lib_table
+  (lib (name "himax")(type "KiCad")(uri "${KIPRJMOD}/himax.kicad_sym")(options "")(descr ""))
+  (lib (name "stm32f723z")(type "KiCad")(uri "${KIPRJMOD}/STM32F723ZCT6/KiCADv6/stm32f723z.kicad_sym")(options "")(descr ""))
+  (lib (name "diodes_incorporated")(type "KiCad")(uri "${KIPRJMOD}/diodes_incorporated.kicad_sym")(options "")(descr ""))
+)
