@@ -332,6 +332,14 @@
     [
       "f1be01d5-cbe4-4b42-b176-af7639b94e16",
       "power"
+    ],
+    [
+      "14e511c0-58a5-4a66-bf00-85391552c884",
+      "ulpi"
+    ],
+    [
+      "b918b091-9a92-46a0-ac1d-eabfdc6a3e5b",
+      "bus mux"
     ]
   ],
   "text_variables": {}

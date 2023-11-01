@@ -14,12 +14,29 @@ Power rails needed:
     - HM0360 DVDD
 
 Schematic checklist
+ - [ ] STM32
+     - [ ] inter-camera sync signal
+     - [ ] a few gpio for controlling external stuff
+     - [x] programming connector
+ - [ ] USB
+     - [x] tvs diodes  (USB3300 has integrated TVS diodes)
+     - [ ] ULPI transciever
+           USB3320
+         - [i] refclk
+         - [x] gpio voltage levels acceptable?
+ - [ ] image sensor bus switch
+ - [ ] hm0360
+     - [ ] i2c selection pins
+     - [ ] mclk; should we provide an external clock?
+     - [ ] xsleep, xshutdown, etc
+     - [ ] strobe
+     - [ ] int
+ - [ ] hm01b0
+     - [ ] mclk; should we provide an external clock?
+     - [ ] strobe
+     - [ ] int
+ - [x] i2c pullups
  - [ ] lens mounting holes
- - [ ] inter-camera sync signal
- - [ ] a few gpio for controlling external stuff
- - [ ] tvs diodes
- - [ ] i2c pullups
- - [ ] programming connector
 
 
 Bringup todos
