@@ -13,29 +13,38 @@ Power rails needed:
  - 1v2
     - HM0360 DVDD
 
-Schematic checklist
+#### Schematic checklist
  - [ ] STM32
-     - [ ] inter-camera sync signal
+     - [ ] inter-module sync signal
      - [ ] a few gpio for controlling external stuff
      - [x] programming connector
+     - [x] a couple LEDs and buttons
+     - [ ] BOOT0 / reset button
  - [ ] USB
      - [x] tvs diodes  (USB3300 has integrated TVS diodes)
      - [ ] ULPI transciever
            USB3320
          - [i] refclk
-         - [x] gpio voltage levels acceptable?
+               going to wait to start layout to decide which pin will work the best for this.
+               STM32 can't generate clock on ULPI bus.
+         - [x] gpio vol] i2c selection pins
+     - [ tage levels acceptable?
  - [ ] image sensor bus switch
+     - [x] muxes
+     - [i] camera select signal
  - [ ] hm0360
-     - [ ] i2c selection pins
+     - [x] i2c selection pins
      - [ ] mclk; should we provide an external clock?
-     - [ ] xsleep, xshutdown, etc
-     - [ ] strobe
-     - [ ] int
+     - [i] xsleep, xshutdown, etc
+     - [x] strobe
+     - [i] int
  - [ ] hm01b0
-     - [ ] mclk; should we provide an external clock?
-     - [ ] strobe
-     - [ ] int
+     - [i] mclk; should we provide an external clock?
+     - [i] strobe
+     - [i] int
  - [x] i2c pullups
+
+#### PCB checklist
  - [ ] lens mounting holes
 
 

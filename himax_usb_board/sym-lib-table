@@ -1,9 +1,10 @@
 (sym_lib_table
   (lib (name "himax")(type "KiCad")(uri "${KIPRJMOD}/himax.kicad_sym")(options "")(descr ""))
-  (lib (name "diodes_incorporated")(type "KiCad")(uri "${KIPRJMOD}/diodes_incorporated.kicad_sym")(options "")(descr ""))
+  (lib (name "diodes_incorporated")(type "KiCad")(uri "${KIPRJMOD}/AP7331-SNG-7/diodes_incorporated.kicad_sym")(options "")(descr ""))
   (lib (name "STM32F750Z8T6")(type "KiCad")(uri "${KIPRJMOD}/STM32F750Z8T6/KiCADv6/STM32F750Z8T6.kicad_sym")(options "")(descr ""))
   (lib (name "BM06B_SURS_TF")(type "KiCad")(uri "${KIPRJMOD}/BM06B_SURS_TF/KiCADv6/BM06B_SURS_TF.kicad_sym")(options "")(descr ""))
   (lib (name "USB3300_EZK")(type "KiCad")(uri "${KIPRJMOD}/USB3300_EZK/KiCADv6/USB3300_EZK.kicad_sym")(options "")(descr ""))
   (lib (name "74CBTLV3257BQ_115")(type "KiCad")(uri "${KIPRJMOD}/74CBTLV3257BQ_115/KiCADv6/74CBTLV3257BQ_115.kicad_sym")(options "")(descr ""))
   (lib (name "USB3320C-EZK-TR")(type "KiCad")(uri "${KIPRJMOD}/USB3320C_EZK/USB3320C-EZK-TR.kicad_sym")(options "")(descr ""))
+  (lib (name "USB4105GFA")(type "KiCad")(uri "${KIPRJMOD}/USB4105_GF_A/USB4105GFA.kicad_sym")(options "")(descr ""))
 )
