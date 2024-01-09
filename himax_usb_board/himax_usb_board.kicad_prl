@@ -1,6 +1,6 @@
 {
   "board": {
-    "active_layer": 0,
+    "active_layer": 37,
     "active_layer_preset": "",
     "auto_track_width": false,
     "hidden_nets": [],
@@ -9,7 +9,7 @@
     "opacity": {
       "pads": 1.0,
       "tracks": 1.0,
-      "vias": 1.0,
+      "vias": 0.7699999809265137,
       "zones": 0.6
     },
     "ratsnest_display_mode": 0,
@@ -62,7 +62,7 @@
       36
     ],
     "visible_layers": "7fcfdff_80000007",
-    "zone_display_mode": 1
+    "zone_display_mode": 0
   },
   "meta": {
     "filename": "himax_usb_board.kicad_prl",

@@ -14,38 +14,41 @@ Power rails needed:
     - HM0360 DVDD
 
 #### Schematic checklist
- - [ ] STM32
-     - [ ] inter-module sync signal
-     - [ ] a few gpio for controlling external stuff
+ - [x] STM32
+     - [x] inter-module sync signal
+     - [x] a few gpio for controlling external stuff
      - [x] programming connector
      - [x] a couple LEDs and buttons
-     - [ ] BOOT0 / reset button
- - [ ] USB
+     - [x] BOOT0 / reset button
+ - [x] USB
      - [x] tvs diodes  (USB3300 has integrated TVS diodes)
-     - [ ] ULPI transciever
+     - [x] ULPI transciever
            USB3320
-         - [i] refclk
+         - [x] refclk
                going to wait to start layout to decide which pin will work the best for this.
                STM32 can't generate clock on ULPI bus.
          - [x] gpio vol] i2c selection pins
-     - [ tage levels acceptable?
- - [ ] image sensor bus switch
+ - [x] image sensor bus switch
      - [x] muxes
-     - [i] camera select signal
- - [ ] hm0360
+     - [x] camera select signal
+ - [x] hm0360
      - [x] i2c selection pins
-     - [ ] mclk; should we provide an external clock?
-     - [i] xsleep, xshutdown, etc
+     - [x] mclk; should we provide an external clock?
+           yes.
+     - [x] xsleep, xshutdown, etc
      - [x] strobe
-     - [i] int
- - [ ] hm01b0
-     - [i] mclk; should we provide an external clock?
-     - [i] strobe
-     - [i] int
+     - [x] int
+ - [x] hm01b0
+     - [x] mclk; should we provide an external clock?
+     - [x] strobe
+     - [x] int
  - [x] i2c pullups
+ - [x] Crystal capacitor selection
+ - [ ] check ground vias
 
 #### PCB checklist
- - [ ] lens mounting holes
+ - [x] lens mounting holes
+ - [ ] add current sensing?
 
 
 Bringup todos

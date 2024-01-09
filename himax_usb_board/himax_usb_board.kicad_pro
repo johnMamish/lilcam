@@ -45,7 +45,7 @@
         "silk_text_upright": false,
         "zones": {
           "45_degree_only": false,
-          "min_clearance": 0.07619999999999999
+          "min_clearance": 0.15239999999999998
         }
       },
       "diff_pair_dimensions": [
@@ -408,6 +408,34 @@
           "/bus mux/hm0360_data.hsync",
           "/bus mux/hm0360_data.pclk",
           "/bus mux/hm0360_data.vsync"
+        ],
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.0762,
+        "via_diameter": 0.3024,
+        "via_drill": 0.15,
+        "wire_width": 6.0
+      },
+      {
+        "bus_width": 12.0,
+        "clearance": 0.0762,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.0,
+        "microvia_drill": 0.1,
+        "name": "ulpi",
+        "nets": [
+          "/microcontroller/ulpi.clk",
+          "/microcontroller/ulpi.d0",
+          "/microcontroller/ulpi.d1",
+          "/microcontroller/ulpi.d2",
+          "/microcontroller/ulpi.d3",
+          "/microcontroller/ulpi.d7",
+          "/microcontroller/ulpi.dir",
+          "/microcontroller/ulpi.nxt",
+          "/microcontroller/ulpi.stp"
         ],
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "schematic_color": "rgba(0, 0, 0, 0.000)",
