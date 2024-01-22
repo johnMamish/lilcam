@@ -157,7 +157,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  #if 1
+#if 1
   osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128, defaultTaskBuffer, &defaultTaskControlBlock);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 #endif
@@ -172,6 +172,7 @@ int main(void)
                     &systemTaskControlBlock);
   systemTaskHandle = osThreadCreate(osThread(systemTask), NULL);
 
+#if 1
   osThreadStaticDef(cameraTask,
                     camera_task,
                     osPriorityNormal,
@@ -180,6 +181,7 @@ int main(void)
                     cameraTaskBuffer,
                     &cameraTaskControlBlock);
   cameraTaskHandle = osThreadCreate(osThread(cameraTask), NULL);
+#endif
 
   /* USER CODE END RTOS_THREADS */
 
@@ -640,6 +642,26 @@ static void MX_GPIO_Init(void)
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
+const uint8_t* teststr =
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    \
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    \
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    \
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 void StartDefaultTask(void const * argument)
 {
   /* init code for USB_DEVICE */
@@ -649,36 +671,20 @@ void StartDefaultTask(void const * argument)
   osDelay(100);
   for(;;)
   {
-    #define STR \
-      "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n" \
-          "0123456789abcde\n0123456789abcde\n0123456789abcde\n0123456789abcde\n"
-    extern USBD_HandleTypeDef hUsbDeviceHS;
+      // wait until
 
   //USBD_CDC_SetTxBuffer(&hUsbDeviceHS, STR, strlen(STR));
   //uint8_t rs = USBD_CDC_TransmitPacket(&hUsbDeviceHS);
 
-    uint8_t rs = CDC_Transmit_HS(STR, strlen(STR));
+      volatile uint32_t* backptr = (DMA2_Stream7->CR & (1 << 19)) ? DMA2_Stream7->M0AR : DMA2_Stream7->M1AR;
+      extern uint8_t camerabuf[2][2 * 320 * 240];
+      uint8_t rs = CDC_Transmit_HS(backptr, 2 * 320 * 240);
 
-    HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
-    if ((rs == USBD_FAIL) || (rs == USBD_BUSY)) {
-        HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
-    }
-
-    taskYIELD();
+      HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
+      if ((rs == USBD_FAIL) || (rs == USBD_BUSY)) {
+          HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
+      }
+      osDelay(100);
   }
   /* USER CODE END 5 */
 }

@@ -22,7 +22,7 @@ static volatile DMA_Stream_TypeDef* dma2_stream7 __attribute__((unused)) = DMA2_
 
 #define WIDTH 320
 #define HEIGHT 240
-static uint8_t camerabuf[2][2 * WIDTH * HEIGHT] = { 0 };
+uint8_t camerabuf[2][2 * WIDTH * HEIGHT] = { 0 };
 
 /**
  * Some assorted notes:
@@ -82,8 +82,6 @@ static void dma_setup_xfer()
 
 void DCMI_IRQHandler()
 {
-    HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
-    //HAL_GPIO_TogglePin(GPIOF, GPIO_PIN_6);
     DCMI->ICR = 1 | (1 << 3) | (1 << 4);
 }
 
@@ -102,52 +100,21 @@ void DMA2_Stream7_IRQHandler()
 
 void camera_task(void const* args)
 {
-    __HAL_RCC_DCMI_CLK_ENABLE();
-    if (1)
-    {
-        GPIO_InitTypeDef GPIO_InitStruct = {0};
-        GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6;
-        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
-        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-        GPIO_InitStruct.Alternate = GPIO_AF13_DCMI;
-        HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
-
-        GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_6;
-        //GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
-        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-        GPIO_InitStruct.Alternate = GPIO_AF13_DCMI;
-        HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-        GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9;
-        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
-        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-        GPIO_InitStruct.Alternate = GPIO_AF13_DCMI;
-        HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-        GPIO_InitStruct.Pin = GPIO_PIN_3;
-        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
-        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-        GPIO_InitStruct.Alternate = GPIO_AF13_DCMI;
-        HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
-        GPIO_InitStruct.Pin = GPIO_PIN_9;
-        //GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-        GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
-        GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-        GPIO_InitStruct.Alternate = GPIO_AF13_DCMI;
-        HAL_GPIO_Init(GPIOG, &GPIO_InitStruct);
-    }
-
     camera_frame_ready_semaphore = xSemaphoreCreateBinaryStatic(&camera_frame_ready_semaphore_buffer);
 
     // enable DMA clock
     __HAL_RCC_DMA2_CLK_ENABLE();
+    __HAL_RCC_DCMI_CLK_ENABLE();
+
+    // make sure that DCMI and DMA are enabled before the hm01b0 starts sending images.
+    // NOTE: the 'active' state of hsync and vsync is 0. hsync and vsync are considered active when
+    // data is invalid, not when data is valid.
+    DCMI->IER = (1 << 0) | (1 << 3);
+    DCMI->ICR = (1 << 0) | (1 << 3);
+    DCMI->CR |= (1 << 14);
+    dma_setup_xfer();
+
+    DCMI->CR |= (1 << 0);
 
     // for starters, set camera select to choose hm01b0
     HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_SET);
@@ -158,7 +125,7 @@ void camera_task(void const* args)
     TIM2->CR1 |= (1 << 0);
 
     // let the MCLK run for a little bit before trying to do anything
-    osDelay(5);
+    osDelay(200);
 
     // reset hm01b0
     {
@@ -172,13 +139,6 @@ void camera_task(void const* args)
     }
 
     osDelay(5);
-
-    // make sure that DCMI and DMA are enabled before the hm01b0 starts sending images.
-    // NOTE: the 'active' state of hsync and vsync is 0. hsync and vsync are considered active when
-    // data is invalid, not when data is valid.
-    DCMI->CR |= (1 << 14);
-    dma_setup_xfer();
-    DCMI->CR |= (1 << 0);
 
     // initialize hm01b0 over i2c
     for (int i = 0; i < sizeof_hm01b0_init_values / sizeof(hm01b0_init_values[0]);) {
