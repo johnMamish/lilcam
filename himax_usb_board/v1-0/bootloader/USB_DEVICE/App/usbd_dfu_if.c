@@ -193,8 +193,9 @@ uint16_t MEM_If_DeInit_HS(void)
 uint16_t MEM_If_Erase_HS(uint32_t Add)
 {
   /* USER CODE BEGIN 8 */
-    // erases are ignored. the bootloader erases all appropriate memory at startup.
-  return (USBD_OK);
+    pending_flash_op = 2;
+    pending_write_addr = Add;
+    return (USBD_OK);
   /* USER CODE END 8 */
 }
 
@@ -215,6 +216,10 @@ uint16_t MEM_If_Write_HS(uint8_t *src, uint8_t *dest, uint32_t Len)
         pending_write_len = Len;
         return (USBD_OK);
     } else {
+        HAL_GPIO_WritePin(led0_GPIO_Port, led0_Pin, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
+        //while (1);
         return 1;
     }
   /* USER CODE END 9 */
@@ -248,17 +253,28 @@ uint16_t MEM_If_GetStatus_HS(uint32_t Add, uint8_t Cmd, uint8_t *buffer)
   /* USER CODE BEGIN 11 */
   switch(Cmd)
   {
-    case DFU_MEDIA_PROGRAM:
-        if (pending_flash_op) {
-            buffer[1] = 5;
-        } else {
-        }
-    break;
+      case DFU_MEDIA_PROGRAM: {
+          if (pending_flash_op == 1) {
+              // 5 milliseconds should be enough for writes
+              buffer[1] = 10;
+          } else if (pending_flash_op == 2) {
+              buffer[1] = 255;
+              buffer[2] = 1;
+          }
+          break;
+      }
 
-    case DFU_MEDIA_ERASE:
-    default:
+      case DFU_MEDIA_ERASE: {
+          if (pending_flash_op) {
+              buffer[1] = 255;
+              buffer[2] = 1;
+          }
+          break;
+      }
 
-    break;
+      default: {
+          break;
+      }
   }
   return  (USBD_OK);
   /* USER CODE END 11 */

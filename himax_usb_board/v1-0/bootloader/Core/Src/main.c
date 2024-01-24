@@ -48,7 +48,7 @@ TIM_HandleTypeDef htim4;
 
 uint8_t mem_backup[65536];
 
-uint32_t new_reset_vect = 0;
+uint32_t new_reset_vect = 0x0800ffff;
 
 /* USER CODE END PV */
 
@@ -67,6 +67,41 @@ void OTG_HS_IRQHandler(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+/**
+ * This function erases the bottom 32k of memory.
+ * Note that when we do this, we need to write our own reset vector over address 4.
+ * Any erase we do of sector 0 should also come with this to avoid soft-bricking the board.
+ */
+void erase_sector_0()
+{
+    HAL_FLASH_Unlock();
+    FLASH_Erase_Sector(FLASH_SECTOR_0, FLASH_VOLTAGE_RANGE_3);
+    FLASH_WaitForLastOperation(1000);
+
+    // write our own reset vector to address 0x0800'0004
+    FLASH_Program_Word(0x08000004, 0x0800ffff);
+    FLASH_WaitForLastOperation(1000);
+}
+
+/**
+ * This function erases the top 32k of memory.
+ * It preserves all flash content above the bootloader's flash start address.
+ */
+void erase_sector_1()
+{
+    HAL_FLASH_Unlock();
+    FLASH_Erase_Sector(FLASH_SECTOR_1, FLASH_VOLTAGE_RANGE_3);
+    FLASH_WaitForLastOperation(1000);
+
+    // write bootloader back to upper part of memory.
+    // all flash content is backed up into mem_backup at startup.
+    extern uint32_t __bootloader_start, __bootloader_end;
+    for (uint32_t* addr = &__bootloader_start, i = 0; addr < &__bootloader_end; addr++, i++) {
+        FLASH_Program_Word(addr, *(((uint32_t*)mem_backup) + i));
+        FLASH_WaitForLastOperation(1000);
+    }
+}
 
 /* USER CODE END 0 */
 
@@ -118,6 +153,7 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
+
   // unlock flash
   HAL_FLASH_Unlock();
 
@@ -132,37 +168,25 @@ int main(void)
   TIM4->CCER = 1;
   TIM4->CR1 |= (1 << 0);
 
+  // backup all of flash memory in case we erase the bootloader portion and need to rewrite it.
+  // we really could just do the top part of flash, but the operation only takes ~3ms.
+  extern uint32_t __bootloader_start, __bootloader_length;
+  memcpy(mem_backup, (void*)(&__bootloader_start), (uint32_t)(&__bootloader_length));
+
   // THIS CODE IS A DANGER ZONE - if power is lost in the middle, then the board will be
   // soft-bricked and will need to be reprogrammed with a SWD programmer.
 
   // if the reset vector is our special value, we don't need to reprogram, we can just go straight
   // to the bootloader app
-  if (*((uint32_t*)0x08000004) != 0x0800ffff) {
+  //if (*((uint32_t*)0x08000004) != 0x0800ffff) {
+  if (1) {
       // turn on LEDs to warn
       HAL_GPIO_WritePin(led0_GPIO_Port, led0_Pin, GPIO_PIN_SET);
       HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
       HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
 
-      // when the bootloader is entered, we need to erase all of the flash memory, and then write
-      // the bootloader back into upper portions of flash, as well as a modified reset vector into
-      // memory location 0x08000004
-      memcpy(mem_backup, 0x08000000, 65536);
-
-      // erase all memory.
-      FLASH_Erase_Sector(FLASH_SECTOR_0, FLASH_VOLTAGE_RANGE_3);
-      FLASH_WaitForLastOperation(1000);
-      FLASH_Erase_Sector(FLASH_SECTOR_1, FLASH_VOLTAGE_RANGE_3);
-      FLASH_WaitForLastOperation(1000);
-
-      // write our own reset vector to address 0x0800'0004
-      FLASH_Program_Word(0x08000004, 0x0800ffff);
-      FLASH_WaitForLastOperation(1000);
-
-      // write bootloader back to upper part of memory.
-      for (uint32_t addr = 0xa000; addr < 0x10000; addr += 4) {
-          FLASH_Program_Word(0x08000000 + addr, *(int32_t*)(mem_backup + addr));
-          FLASH_WaitForLastOperation(1000);
-      }
+      erase_sector_0();
+      erase_sector_1();
 
       HAL_GPIO_WritePin(led0_GPIO_Port, led0_Pin, GPIO_PIN_RESET);
       HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
@@ -196,14 +220,17 @@ int main(void)
   /* definition and creation of defaultTask */
 
   /* USER CODE BEGIN 3 */
+  //
+
   extern uint8_t write_buffer[32768];
   extern uint32_t flash_write_done;
+  uint32_t last_button_unpressed_time = 0;
   while (!flash_write_done) {
       // poll to see if there's a new chunk to write to flash memory.
       extern volatile uint32_t pending_flash_op;
       extern volatile uint32_t pending_write_addr;
       extern volatile uint32_t pending_write_len;
-      if (pending_flash_op) {
+      if (pending_flash_op == 1) {
           if (pending_write_addr >= 0x0800a000) {
               // This write would overwrite our bootloader. don't do it!
               pending_flash_op = 0;
@@ -226,6 +253,17 @@ int main(void)
               }
               pending_flash_op = 0;
           }
+      } else if (pending_flash_op == 2) {
+          // erase operation
+          HAL_GPIO_WritePin(led0_GPIO_Port, led0_Pin, GPIO_PIN_SET);
+          HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
+          HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
+          if (pending_write_addr == 0x08000000) {
+              erase_sector_0();
+          } else if (pending_write_addr == 0x08008000) {
+              erase_sector_1();
+          }
+          pending_flash_op = 0;
       }
 
       // blink LEDs to indicate bootloader status
@@ -240,7 +278,24 @@ int main(void)
       } else {
           HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
       }
+
+      if (HAL_GPIO_ReadPin(user_button_GPIO_Port, user_button_Pin)) {
+          // if button isn't pressed, update the time
+          last_button_unpressed_time = HAL_GetTick();
+      }
+
+      if ((HAL_GetTick() - last_button_unpressed_time) > 5000) {
+          // if we hold the button down for 5000 millisec, force exit the bootloader.
+          flash_write_done = 1;
+      }
   }
+
+  FLASH_Program_Word(0x08000004, new_reset_vect);
+  FLASH_WaitForLastOperation(1000);
+
+  HAL_GPIO_WritePin(led0_GPIO_Port, led0_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_RESET);
 
   while (1);
   /* USER CODE END 3 */

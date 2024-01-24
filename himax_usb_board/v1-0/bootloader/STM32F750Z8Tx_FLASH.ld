@@ -65,7 +65,7 @@ MEMORY
     RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 320K
 
     /* bootloader only gets final 20 kiB of flash */
-    FLASH (rx)      : ORIGIN = 0x8000000 + (64K - 24K), LENGTH = 24K
+    FLASH (rx)      : ORIGIN = 0x8000000 + (64K - 20K), LENGTH = 20K
 }
 
 /* Define output sections */
@@ -84,6 +84,9 @@ SECTIONS
   } >RAM
 
   /* programs that actually go in flash */
+  __bootloader_start = ORIGIN(FLASH);
+  __bootloader_length = LENGTH(FLASH);
+  __bootloader_end = ORIGIN(FLASH) + LENGTH(FLASH);
   .flashtext :
   {
     KEEP(*(.flashtext))
