@@ -25,6 +25,7 @@
 /* USER CODE BEGIN Includes */
 #include "system_task.h"
 #include "camera_task.h"
+#include "usb_task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -66,6 +67,17 @@ osStaticThreadDef_t systemTaskControlBlock;
 osThreadId cameraTaskHandle;
 uint32_t cameraTaskBuffer[ CAMERA_TASK_BUFSZ ];
 osStaticThreadDef_t cameraTaskControlBlock;
+
+#define USB_TASK_BUFSZ 512
+osThreadId usbTaskHandle;
+uint32_t usbTaskBuffer[ USB_TASK_BUFSZ ];
+osStaticThreadDef_t usbTaskControlBlock;
+
+#define USB_REQUEST_QUEUE_ITEM_SIZE (sizeof(usb_write_request_t))
+#define USB_REQUEST_QUEUE_LENGTH 4
+QueueHandle_t usb_request_queue = NULL;
+StaticQueue_t usb_request_queue_static;
+uint8_t usb_request_queue_storage_area[USB_REQUEST_QUEUE_ITEM_SIZE * USB_REQUEST_QUEUE_LENGTH];
 
 /* USER CODE END PV */
 
@@ -152,17 +164,22 @@ int main(void)
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
+  usb_request_queue =
+      xQueueCreateStatic(USB_REQUEST_QUEUE_LENGTH, USB_REQUEST_QUEUE_ITEM_SIZE,
+                         usb_request_queue_storage_area, &usb_request_queue_static);
+
+#if 0
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-#if 1
   osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128, defaultTaskBuffer, &defaultTaskControlBlock);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-#endif
+
 
   /* USER CODE BEGIN RTOS_THREADS */
+#endif
+
   osThreadStaticDef(systemTask,
                     system_task,
                     osPriorityNormal,
@@ -181,6 +198,17 @@ int main(void)
                     cameraTaskBuffer,
                     &cameraTaskControlBlock);
   cameraTaskHandle = osThreadCreate(osThread(cameraTask), NULL);
+#endif
+
+#if 1
+  osThreadStaticDef(usbTask,
+                    usb_task,
+                    osPriorityNormal,
+                    0,
+                    USB_TASK_BUFSZ,
+                    usbTaskBuffer,
+                    &usbTaskControlBlock);
+  usbTaskHandle = osThreadCreate(osThread(usbTask), NULL);
 #endif
 
   /* USER CODE END RTOS_THREADS */
@@ -634,60 +662,6 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
-
-/* USER CODE BEGIN Header_StartDefaultTask */
-/**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartDefaultTask */
-const uint8_t* teststr =
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    \
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    \
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    \
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-void StartDefaultTask(void const * argument)
-{
-  /* init code for USB_DEVICE */
-  MX_USB_DEVICE_Init();
-  /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  osDelay(100);
-  for(;;)
-  {
-      // wait until
-
-  //USBD_CDC_SetTxBuffer(&hUsbDeviceHS, STR, strlen(STR));
-  //uint8_t rs = USBD_CDC_TransmitPacket(&hUsbDeviceHS);
-
-      volatile uint32_t* backptr = (DMA2_Stream7->CR & (1 << 19)) ? DMA2_Stream7->M0AR : DMA2_Stream7->M1AR;
-      extern uint8_t camerabuf[2][2 * 320 * 240];
-      uint8_t rs = CDC_Transmit_HS(backptr, 2 * 320 * 240);
-
-      HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
-      if ((rs == USBD_FAIL) || (rs == USBD_BUSY)) {
-          HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
-      }
-      osDelay(100);
-  }
-  /* USER CODE END 5 */
-}
 
 /**
   * @brief  Period elapsed callback in non blocking mode

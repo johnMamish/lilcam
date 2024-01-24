@@ -84,6 +84,7 @@ Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
 # user sources
 C_SOURCES += Core/Src/system_task.c
 C_SOURCES += Core/Src/camera_task.c
+C_SOURCES += Core/Src/usb_task.c
 C_SOURCES += Core/Src/hm01b0_init_bytes.c
 
 # ASM sources

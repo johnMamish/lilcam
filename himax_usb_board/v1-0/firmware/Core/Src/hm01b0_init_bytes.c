@@ -392,7 +392,7 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
     // W 24 0341 7A 2 1 ; smia frame length Lb 3192
     {
         0x0341,
-        0x04,
+        0x40,
     },
     //
     // W 24 0342 01 2 1 ; smia line length Hb
@@ -475,6 +475,7 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
         0x01,
     },
 
+
     // //---------------------------------------------------
     // // Turn on rolling shutter
     // //---------------------------------------------------
@@ -483,7 +484,11 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
     // standby - wait for HW trigger (level), then continuous video out til HW
     // TRIG goes off 06 : standby - wait for HW trigger (edge), then output "N"
     // frames then enter standby
-    {0x0100, 0x01},
+    {
+        0x0100, 0x01
+    },
+
+
 };
 
 const int sizeof_hm01b0_init_values = sizeof(hm01b0_init_values);
