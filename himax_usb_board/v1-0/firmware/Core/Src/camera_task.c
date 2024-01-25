@@ -28,13 +28,13 @@ static volatile DMA_Stream_TypeDef* dma2_stream7 __attribute__((unused)) = DMA2_
 volatile int framestart_flag = 0;
 
 // raw buffer to hold
-#define RAWBUF_WIDTH  (324 * 2)
-#define RAWBUF_HEIGHT (61)
+#define RAWBUF_WIDTH  (320 * 2)
+#define RAWBUF_HEIGHT (60)
 uint8_t camera_rawbuf[2][RAWBUF_WIDTH * RAWBUF_HEIGHT] = { 0 };
 
 // buffer to hold properly packed pixels for usb xfer
-#define PACKEDBUF_WIDTH (324)
-#define PACKEDBUF_HEIGHT (61)
+#define PACKEDBUF_WIDTH (320)
+#define PACKEDBUF_HEIGHT (60)
 uint8_t camera_packedbuf[2][PACKEDBUF_WIDTH * (PACKEDBUF_HEIGHT + 1)] = { 0 };
 
 /**
@@ -97,8 +97,9 @@ static void dma_setup_xfer()
 void DCMI_IRQHandler()
 {
     framestart_flag = 1;
-    DCMI->IER = (1 << 3);
-    DCMI->ICR = 1 | (1 << 3) | (1 << 4);
+    DCMI->ICR = (1 << 4) | (1 << 3);
+
+    HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
 }
 
 volatile int xfer_count = 0;
@@ -159,28 +160,6 @@ void camera_task(void const* args)
 {
     camera_frame_ready_semaphore = xSemaphoreCreateBinaryStatic(&camera_frame_ready_semaphore_buffer);
 
-    // enable DMA clock
-    __HAL_RCC_DMA2_CLK_ENABLE();
-    __HAL_RCC_DCMI_CLK_ENABLE();
-
-
-    // output of HM01B0 is 324 x 244. We want to crop the border of 4 dummy pixels.
-    //DCMI->CWSTRTR = (  2 << 16) | (  4 << 0);    // 2 pixel border around edge.
-    //DCMI->CWSIZER = (239 << 16) | (((320 * 2) - 1) << 0);    // image is 320 x 240
-    //DCMI->CR |= (1 << 2);                   // enable crop feature
-
-    // make sure that DCMI and DMA are enabled before the hm01b0 starts sending images.
-    DCMI->IER = (1 << 3);
-    DCMI->ICR = (1 << 3);
-    DCMI->CR |= (1 << 14);
-
-    dma_setup_xfer();
-
-    // enable DCMI IRQ
-    HAL_NVIC_SetPriority(DCMI_IRQn, 10, 0);
-    HAL_NVIC_EnableIRQ(DCMI_IRQn);
-    DCMI->CR |= (1 << 0);
-
     // for starters, set camera select to choose hm01b0
     HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_SET);
 
@@ -190,7 +169,7 @@ void camera_task(void const* args)
     TIM2->CR1 |= (1 << 0);
 
     // let the MCLK run for a little bit before trying to do anything
-    osDelay(200);
+    osDelay(10);
 
     // reset hm01b0
     {
@@ -203,7 +182,31 @@ void camera_task(void const* args)
         err = HAL_I2C_Master_Transmit(&hi2c1, 0x24 << 1, buf, 3, 100);
     }
 
-    osDelay(5);
+    // enable DMA clock
+    __HAL_RCC_DMA2_CLK_ENABLE();
+    __HAL_RCC_DCMI_CLK_ENABLE();
+
+    osDelay(1);
+
+    // output of HM01B0 is 324 x 244. We want to crop the border of 4 dummy pixels.
+    DCMI->CWSIZER = (239 << 16) | (((320 * 2) - 1) << 0);    // image is 320 x 240
+    DCMI->CWSTRTR = (  2 << 16) | (  4 << 0);    // 2 pixel border around edge.
+    DCMI->CR |= (1 << 2);                   // enable crop feature
+
+    // make sure that DCMI and DMA are enabled before the hm01b0 starts sending images.
+    DCMI->CR &= 0xffe0bfff;
+    DCMI->IER = (1 << 3);
+    DCMI->CR |= (1 << 14);
+
+    dma_setup_xfer();
+
+    // enable DCMI IRQ
+    HAL_NVIC_SetPriority(DCMI_IRQn, 10, 0);
+    HAL_NVIC_EnableIRQ(DCMI_IRQn);
+
+    DCMI->CR |= (1 << 0);
+
+    osDelay(1);
 
     // initialize hm01b0 over i2c
     for (int i = 0; i < sizeof_hm01b0_init_values / sizeof(hm01b0_init_values[0]);) {
@@ -212,13 +215,13 @@ void camera_task(void const* args)
 
         HAL_StatusTypeDef err = HAL_I2C_Master_Transmit(&hi2c1, 0x24 << 1, buf, 3, 100);
 
-        HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_RESET);
         if (err) {
             HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
         }
 
         taskYIELD();
     }
+    HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_RESET);
 
     while (1) {
         // wait til DMA is finished
@@ -238,10 +241,11 @@ void camera_task(void const* args)
 
         //if (framestart_flag) {
         if (xfer_count == 0) {
-            HAL_GPIO_WritePin(led0_GPIO_Port, led0_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
         } else {
-            HAL_GPIO_WritePin(led0_GPIO_Port, led0_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
         }
+
 
         uint8_t* rawbuf = camera_rawbuf[backbuf_idx];
 
@@ -261,6 +265,6 @@ void camera_task(void const* args)
         }
 
         // toggle the pin as a sign of life
-        //HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
+        HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
     }
 }

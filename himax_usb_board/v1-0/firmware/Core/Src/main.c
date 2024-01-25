@@ -147,7 +147,7 @@ int main(void)
   TIM4->CR1 |= (1 << 0);
 
   // should wait for a little bit after the timer is initialized to let the USB startup
-  for (volatile int i = 0; i < 200000; i++);
+  HAL_Delay(5);
 
   /* USER CODE END 2 */
 

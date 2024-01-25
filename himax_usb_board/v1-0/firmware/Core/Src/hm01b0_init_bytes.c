@@ -454,8 +454,7 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
     // W 24 3060 01 2 1 ; [5]: gated_clock, [4]: msb first,
     {
         0x3060,
-        //0x20,
-        0x21
+        0x01
     },
     // ; [3:2]: vt_reg_div -> div by 4/8/1/2
     // ; [1;0]: vt_sys_div -> div by 8/4/2/1
