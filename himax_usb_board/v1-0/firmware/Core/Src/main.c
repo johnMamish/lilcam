@@ -24,7 +24,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "system_task.h"
-#include "camera_task.h"
+#include "camera_read_task.h"
+#include "camera_management_task.h"
 #include "usb_task.h"
 /* USER CODE END Includes */
 
@@ -63,10 +64,15 @@ osThreadId systemTaskHandle;
 uint32_t systemTaskBuffer[ SYSTEM_TASK_BUFSZ ];
 osStaticThreadDef_t systemTaskControlBlock;
 
-#define CAMERA_TASK_BUFSZ 512
+#define CAMERA_READ_TASK_BUFSZ 512
 osThreadId cameraTaskHandle;
-uint32_t cameraTaskBuffer[ CAMERA_TASK_BUFSZ ];
+uint32_t cameraTaskBuffer[ CAMERA_READ_TASK_BUFSZ ];
 osStaticThreadDef_t cameraTaskControlBlock;
+
+#define CAMERA_MANAGEMENT_TASK_BUFSZ 512
+osThreadId cameraManagementTaskHandle;
+uint32_t cameraManagementTaskBuffer[ CAMERA_MANAGEMENT_TASK_BUFSZ ];
+osStaticThreadDef_t cameraManagementTaskControlBlock;
 
 #define USB_TASK_BUFSZ 512
 osThreadId usbTaskHandle;
@@ -191,13 +197,22 @@ int main(void)
 
 #if 1
   osThreadStaticDef(cameraTask,
-                    camera_task,
+                    camera_read_task,
                     osPriorityNormal,
                     0,
-                    CAMERA_TASK_BUFSZ,
+                    CAMERA_READ_TASK_BUFSZ,
                     cameraTaskBuffer,
                     &cameraTaskControlBlock);
   cameraTaskHandle = osThreadCreate(osThread(cameraTask), NULL);
+
+  osThreadStaticDef(cameraManagementTask,
+                    camera_management_task,
+                    osPriorityNormal,
+                    0,
+                    CAMERA_MANAGEMENT_TASK_BUFSZ,
+                    cameraManagementTaskBuffer,
+                    &cameraManagementTaskControlBlock);
+  cameraManagementTaskHandle = osThreadCreate(osThread(cameraManagementTask), NULL);
 #endif
 
 #if 1

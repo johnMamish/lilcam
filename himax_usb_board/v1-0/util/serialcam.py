@@ -67,7 +67,7 @@ def read_image_from_serial(port, width, height, upscale_factor):
     ser = establish_serial_connection(port)
     imagesize = width * height
     framesize = width * height + len(PREAMBLE)
-    chunk_size = 1024
+    chunk_size = (1 << 12)
 
     print(f"framesize = {framesize}")
 
@@ -137,8 +137,8 @@ def read_image_from_serial(port, width, height, upscale_factor):
 def main():
     parser = argparse.ArgumentParser(description='Read and display image data from a serial port.')
     parser.add_argument('port', help='The name of the serial port to read from.')
-    parser.add_argument('--width', type=int, default=324, help='Width of the image (default: 320).')
-    parser.add_argument('--height', type=int, default=244, help='Height of the image (default: 240).')
+    parser.add_argument('--width', type=int, default=320, help='Width of the image (default: 320).')
+    parser.add_argument('--height', type=int, default=240, help='Height of the image (default: 240).')
     parser.add_argument('--upscale', type=int, default=2, help='Upscale factor for the image.')
 
     args = parser.parse_args()

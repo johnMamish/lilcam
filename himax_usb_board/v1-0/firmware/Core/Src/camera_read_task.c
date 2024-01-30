@@ -1,4 +1,4 @@
-#include "camera_task.h"
+#include "camera_read_task.h"
 #include "usb_task.h"
 #include "hm01b0_init_bytes.h"
 
@@ -29,12 +29,12 @@ volatile int framestart_flag = 0;
 
 // raw buffer to hold
 #define RAWBUF_WIDTH  (320 * 2)
-#define RAWBUF_HEIGHT (60)
+#define RAWBUF_HEIGHT (30)
 uint8_t camera_rawbuf[2][RAWBUF_WIDTH * RAWBUF_HEIGHT] = { 0 };
 
 // buffer to hold properly packed pixels for usb xfer
 #define PACKEDBUF_WIDTH (320)
-#define PACKEDBUF_HEIGHT (60)
+#define PACKEDBUF_HEIGHT (30)
 uint8_t camera_packedbuf[2][PACKEDBUF_WIDTH * (PACKEDBUF_HEIGHT + 1)] = { 0 };
 
 /**
@@ -97,17 +97,14 @@ static void dma_setup_xfer()
 void DCMI_IRQHandler()
 {
     framestart_flag = 1;
-    DCMI->ICR = (1 << 4) | (1 << 3);
+    DCMI->ICR = (1 << 3);
 
     HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
 }
 
-volatile int xfer_count = 0;
 void DMA2_Stream7_IRQHandler()
 {
     static BaseType_t higher_priority_task_woken;
-
-    xfer_count = (xfer_count + 1) % 4;
 
     // Clear the "transfer complete" interrupt flag.
     DMA2->HIFCR = DMA_HIFCR_CTCIF7;
@@ -156,37 +153,15 @@ const uint8_t magic[320] = {
 
 extern QueueHandle_t usb_request_queue;
 
-void camera_task(void const* args)
+void camera_read_task(void const* args)
 {
+    // note that camera sensor initialization and setup is handled by camera_management_task
+
     camera_frame_ready_semaphore = xSemaphoreCreateBinaryStatic(&camera_frame_ready_semaphore_buffer);
-
-    // for starters, set camera select to choose hm01b0
-    HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_SET);
-
-    // tim2 channel 3 is hm01b0's mclk. Drive it at 12MHz.
-    // tim2 runs at 96MHz. we need to divide it by 8
-    TIM2->CCER = (1 << 8);
-    TIM2->CR1 |= (1 << 0);
-
-    // let the MCLK run for a little bit before trying to do anything
-    osDelay(10);
-
-    // reset hm01b0
-    {
-        hm01b0_reg_write_t v = {0x0103, 0xff};
-        uint8_t buf[3] = {(v.ui16Reg & 0xff00) >> 8, (v.ui16Reg & 0x00ff) >> 0, v.ui8Val};
-        __unused HAL_StatusTypeDef err = HAL_I2C_Master_Transmit(&hi2c1, 0x24 << 1, buf, 3, 100);
-
-        v.ui16Reg = 0x0103; v.ui8Val = 0x00;
-        buf[0] = (v.ui16Reg & 0xff00) >> 8; buf[1] = (v.ui16Reg & 0x00ff) >> 0; buf[2] = v.ui8Val;
-        err = HAL_I2C_Master_Transmit(&hi2c1, 0x24 << 1, buf, 3, 100);
-    }
 
     // enable DMA clock
     __HAL_RCC_DMA2_CLK_ENABLE();
     __HAL_RCC_DCMI_CLK_ENABLE();
-
-    osDelay(1);
 
     // output of HM01B0 is 324 x 244. We want to crop the border of 4 dummy pixels.
     DCMI->CWSIZER = (239 << 16) | (((320 * 2) - 1) << 0);    // image is 320 x 240
@@ -208,21 +183,6 @@ void camera_task(void const* args)
 
     osDelay(1);
 
-    // initialize hm01b0 over i2c
-    for (int i = 0; i < sizeof_hm01b0_init_values / sizeof(hm01b0_init_values[0]);) {
-        hm01b0_reg_write_t v = hm01b0_init_values[i++];
-        uint8_t buf[3] = {(v.ui16Reg & 0xff00) >> 8, (v.ui16Reg & 0x00ff) >> 0, v.ui8Val};
-
-        HAL_StatusTypeDef err = HAL_I2C_Master_Transmit(&hi2c1, 0x24 << 1, buf, 3, 100);
-
-        if (err) {
-            HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
-        }
-
-        taskYIELD();
-    }
-    HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_RESET);
-
     while (1) {
         // wait til DMA is finished
         xSemaphoreTake(camera_frame_ready_semaphore, portMAX_DELAY);
@@ -233,14 +193,14 @@ void camera_task(void const* args)
         // TODO: if it's the first line of a frame, then pack in a synchronization line.
         uint8_t* packedbuf = camera_packedbuf[backbuf_idx];
         uint32_t buflen = PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT;
-        if (xfer_count == 1) {
+        if (framestart_flag) {
             memcpy(packedbuf, magic, 320);
             packedbuf = packedbuf + 320;
             buflen += 320;
+            framestart_flag = 0;
         }
 
-        //if (framestart_flag) {
-        if (xfer_count == 0) {
+        if (framestart_flag) {
             HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
         } else {
             HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
