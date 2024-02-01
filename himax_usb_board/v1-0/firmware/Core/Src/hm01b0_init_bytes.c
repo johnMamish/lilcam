@@ -120,13 +120,15 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
         0x3059,
         0x1E,
     },
+
+    //
     {
         0x3064,
-        0x00,
+        0x04,
     },
     {
         0x3065,
-        0x04,
+        0x04 ,
     },
     //
     //
@@ -196,7 +198,11 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
     // advance VSYNC by 1 row
     {
         0x3022,
-        0x01,
+        0x08,
+    },
+    {
+        0x3023,
+        0x08,
     },
     // W 24 1012 00 2 1 ; Sync. enable VSYNC shift
     {
@@ -476,6 +482,9 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
     // //---------------------------------------------------
     // // Turn on rolling shutter
     // //---------------------------------------------------
+    // 0x01: auto-streaming
+    // 0x03: stream N frames
+    // 0x05: hardware trigger
     // W 24 0100 01 2 1 ; was 0005 ; mode_select 00 : standby - wait fir I2C SW
     // trigger 01 : streaming 03 : output "N" frame, then enter standby 04 :
     // standby - wait for HW trigger (level), then continuous video out til HW
@@ -484,8 +493,6 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
     {
         0x0100, 0x01
     },
-
-
 };
 
 const int sizeof_hm01b0_init_values = sizeof(hm01b0_init_values);

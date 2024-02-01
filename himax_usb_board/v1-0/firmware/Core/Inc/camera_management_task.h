@@ -29,7 +29,7 @@ typedef enum camera_management_type {
     CAMERA_MANAGEMENT_TYPE_TRIGGER_CONFIG,
 } camera_management_type_e;
 
-typedef enum {
+enum {
     CAMERA_MANAGEMENT_SENSOR_SELECT_HM01B0 = 0,
     CAMERA_MANAGEMENT_SENSOR_SELECT_HM0360 = 1
 };

@@ -37,17 +37,9 @@ uint8_t camera_rawbuf[2][RAWBUF_WIDTH * RAWBUF_HEIGHT] = { 0 };
 #define PACKEDBUF_HEIGHT (30)
 uint8_t camera_packedbuf[2][PACKEDBUF_WIDTH * (PACKEDBUF_HEIGHT + 1)] = { 0 };
 
-/**
- * Some assorted notes:
- *   - for the 640x480 sensor, DMA will need to be done in 2 xfers. max DMA xfer size is 256kB
- *     Well, anyways, we only have space on this mcu to buffer one frame.
- */
-
 static void dma_setup_xfer()
 {
-    // 1. make sure that the stream is disabled
-    if (0) { while (1); }
-
+    // TODO?: 1. make sure that the stream is disabled
     // 2. Set the peripheral port register address in the DMA_SxPAR register.
     DMA2_Stream7->PAR = (uint32_t)(&(DCMI->DR));
 
@@ -94,12 +86,14 @@ static void dma_setup_xfer()
     HAL_NVIC_EnableIRQ(DMA2_Stream7_IRQn);
 }
 
+int framecount = 0;
 void DCMI_IRQHandler()
 {
     framestart_flag = 1;
     DCMI->ICR = (1 << 3);
 
     HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
+    HAL_GPIO_WritePin(hm01b0_trig_GPIO_Port, hm01b0_trig_Pin, GPIO_PIN_RESET);
 }
 
 void DMA2_Stream7_IRQHandler()
@@ -155,7 +149,8 @@ extern QueueHandle_t usb_request_queue;
 
 void camera_read_task(void const* args)
 {
-    // note that camera sensor initialization and setup is handled by camera_management_task
+    // note that camera sensor initialization and setup is handled by camera_management_task.
+    // This task just sits
 
     camera_frame_ready_semaphore = xSemaphoreCreateBinaryStatic(&camera_frame_ready_semaphore_buffer);
 
@@ -190,7 +185,7 @@ void camera_read_task(void const* args)
         // we just got some new bytes; they arrive from the hm01b0 in nibbles, so repack them
         int backbuf_idx = (DMA2_Stream7->CR & (1 << 19)) ? 0 : 1;
 
-        // TODO: if it's the first line of a frame, then pack in a synchronization line.
+        // If it's the first line of a frame, then pack in a synchronization line.
         uint8_t* packedbuf = camera_packedbuf[backbuf_idx];
         uint32_t buflen = PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT;
         if (framestart_flag) {
@@ -199,13 +194,6 @@ void camera_read_task(void const* args)
             buflen += 320;
             framestart_flag = 0;
         }
-
-        if (framestart_flag) {
-            HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
-        } else {
-            HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
-        }
-
 
         uint8_t* rawbuf = camera_rawbuf[backbuf_idx];
 
@@ -225,6 +213,6 @@ void camera_read_task(void const* args)
         }
 
         // toggle the pin as a sign of life
-        HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
+        //HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
     }
 }
