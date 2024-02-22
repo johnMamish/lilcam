@@ -86,6 +86,7 @@ static void dma_setup_xfer()
     HAL_NVIC_EnableIRQ(DMA2_Stream7_IRQn);
 }
 
+TaskHandle_t footask_handle;
 int framecount = 0;
 void DCMI_IRQHandler()
 {
@@ -93,7 +94,10 @@ void DCMI_IRQHandler()
     DCMI->ICR = (1 << 3);
 
     HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
-    HAL_GPIO_WritePin(hm01b0_trig_GPIO_Port, hm01b0_trig_Pin, GPIO_PIN_RESET);
+
+    BaseType_t wake_higher_priority_task = pdFALSE;
+    vTaskNotifyGiveFromISR(footask_handle, &wake_higher_priority_task);
+    portYIELD_FROM_ISR(wake_higher_priority_task);
 }
 
 void DMA2_Stream7_IRQHandler()
@@ -147,8 +151,31 @@ const uint8_t magic[320] = {
 
 extern QueueHandle_t usb_request_queue;
 
+void footask(void* args)
+{
+    while (1) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        osDelay(10);
+        HAL_GPIO_WritePin(hm01b0_trig_GPIO_Port, hm01b0_trig_Pin, GPIO_PIN_RESET);
+    }
+}
+
+#define FOO_TASK_BUFSZ 512
+osThreadId FOOTaskHandle;
+uint32_t FOOTaskBuffer[ FOO_TASK_BUFSZ ];
+osStaticThreadDef_t FOOTaskControlBlock;
+
 void camera_read_task(void const* args)
 {
+    footask_handle = xTaskCreateStatic(footask,
+                                       "foo task",
+                                       FOO_TASK_BUFSZ,
+                                       0,
+                                       osPriorityNormal,
+                                       FOOTaskBuffer,
+                                       &FOOTaskControlBlock);
+
+
     // note that camera sensor initialization and setup is handled by camera_management_task.
     // This task just sits
 

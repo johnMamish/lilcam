@@ -72,6 +72,7 @@ void trigger_generation_task(void* args)
             HAL_GPIO_WritePin(gpio4_GPIO_Port, gpio4_Pin, GPIO_PIN_SET);
 
             HAL_GPIO_WritePin(hm01b0_trig_GPIO_Port, hm01b0_trig_Pin, GPIO_PIN_SET);
+            //TIM5->CR1 |= (1 << 0);
 
             // toggle LED1
             HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
@@ -119,14 +120,13 @@ static void init_internal_hw_trig()
     TIM5->CCMR1 |=  (6 << 12);
     TIM5->CCER  &= ~(0xful << 4);
     TIM5->CCER  |=  (1 << 5) | (1 << 4);
-    //TIM5->CCER  |=   (1 << 4);
 
     // pulse for a bit.
     // Note that channel is inverted because "idle state" for the timer is '0' and the one-shot
     // doesn't support
     // the CCR2 = 1 causes a very short (~10s of ns) delay
     TIM5->CCR2 = 1;
-    TIM5->ARR = 5000000;
+    TIM5->ARR = 5000;
 #endif
     // setup gpio3 (trigger in) as input
     GPIO_InitStruct.Pin = gpio3_Pin;
