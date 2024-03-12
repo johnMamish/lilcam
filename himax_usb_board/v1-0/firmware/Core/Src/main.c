@@ -85,6 +85,13 @@ QueueHandle_t usb_request_queue = NULL;
 StaticQueue_t usb_request_queue_static;
 uint8_t usb_request_queue_storage_area[USB_REQUEST_QUEUE_ITEM_SIZE * USB_REQUEST_QUEUE_LENGTH];
 
+#define CAMERA_READ_TASK_CONFIG_QUEUE_ITEM_SIZE (sizeof(camera_read_config_t))
+#define CAMERA_READ_TASK_CONFIG_QUEUE_LENGTH 8
+QueueHandle_t camera_read_task_config_queue = NULL;
+StaticQueue_t camera_read_task_config_queue_static;
+uint8_t camera_read_task_config_queue_storage_area[
+    CAMERA_READ_TASK_CONFIG_QUEUE_ITEM_SIZE * CAMERA_READ_TASK_CONFIG_QUEUE_LENGTH];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -170,9 +177,15 @@ int main(void)
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
-  usb_request_queue =
-      xQueueCreateStatic(USB_REQUEST_QUEUE_LENGTH, USB_REQUEST_QUEUE_ITEM_SIZE,
-                         usb_request_queue_storage_area, &usb_request_queue_static);
+  usb_request_queue = xQueueCreateStatic(USB_REQUEST_QUEUE_LENGTH,
+                                         USB_REQUEST_QUEUE_ITEM_SIZE,
+                                         usb_request_queue_storage_area,
+                                         &usb_request_queue_static);
+
+  camera_read_task_config_queue = xQueueCreateStatic(CAMERA_READ_TASK_CONFIG_QUEUE_LENGTH,
+                                                     CAMERA_READ_TASK_CONFIG_QUEUE_ITEM_SIZE,
+                                                     camera_read_task_config_queue_storage_area,
+                                                     &camera_read_task_config_queue_static);
 
 #if 0
   /* USER CODE END RTOS_QUEUES */

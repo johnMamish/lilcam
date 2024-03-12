@@ -51,13 +51,15 @@ typedef struct camera_read_config {
         } crop_dims;
 
         // Should we pack nibbles into a byte before transmitting? true or false.
-        int pack;
+        bool pack;
 
         //
-        int halt;
+        bool halt;
     } params;
 } camera_read_config_t;
 
 void camera_read_task(void const* args);
+
+void camera_read_task_enqueue_config(const camera_read_config_t* req);
 
 #endif

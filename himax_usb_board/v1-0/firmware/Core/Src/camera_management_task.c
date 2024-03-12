@@ -151,7 +151,7 @@ static void init_internal_hw_trig()
 
 void camera_management_task(void const* args)
 {
-    init_internal_hw_trig();
+    //init_internal_hw_trig();
 
     // for starters, set camera select to choose hm01b0
     HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_SET);

@@ -59,4 +59,9 @@ typedef struct camera_management_request {
  */
 void camera_management_task(void const* args);
 
+/**
+ *
+ */
+void camera_management_task_enqueue_request(const camera_management_request_t* req);
+
 #endif
