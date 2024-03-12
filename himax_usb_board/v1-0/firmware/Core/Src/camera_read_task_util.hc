@@ -130,6 +130,8 @@ static void dcmi_restart()
     HAL_NVIC_SetPriority(DCMI_IRQn, 10, 0);
     HAL_NVIC_EnableIRQ(DCMI_IRQn);
     DCMI->CR |= (1 << 0);
+    DCMI->CR |= (1 << 0);
+    DCMI->CR |= (1 << 0);
 }
 
 

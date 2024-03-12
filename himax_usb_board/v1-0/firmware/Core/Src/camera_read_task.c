@@ -79,6 +79,7 @@ void DMA2_Stream7_IRQHandler()
  * All camera setup is handled by camera_management_task, which also tells this task what image
  * dimensions to expect.
  */
+camera_read_state_t camera_state;
 void camera_read_task(void const* args)
 {
     camera_frame_ready_semaphore = xSemaphoreCreateBinaryStatic(&camera_frame_ready_semaphore_buffer);
@@ -86,7 +87,6 @@ void camera_read_task(void const* args)
     // camera_read_task doesn't have control over how large incoming frames are, instead it needs
     // to be told by camera_management_task how large it should expect incoming frames to be.
     // This variable keeps track of those active camera settings.
-    camera_read_state_t camera_state;
     init_camera_read_state(&camera_state);
 
     // enable DMA clock
@@ -148,22 +148,6 @@ void camera_read_task(void const* args)
             HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
         }
 
-        // Update halt status according to DCMI status bits.
-        if (camera_state.halt_pending && ((DCMI->CR & (1 << 0)) == 0)) {
-            // DCMI just halted after a halt was pending.
-            camera_state.halt_pending = 0;
-            camera_state.halted = 1;
-
-            // Disable DCMI so that DCMI settings can be changed.
-            dcmi_disable();
-
-            // Let other processes know that DCMI has been disabled so we can start changing camera
-            // settings.
-            if (camera_state.halt_callback) {
-                camera_state.halt_callback(camera_state.halt_callback_user);
-            }
-        }
-
         // If we have a request to change the camera configuration, process it now.
         // Note that if we're halted, we add in a short delay so as to not spinlock.
         // Also note that if a DCMI halt is pending, do not try to process any requests.
@@ -213,6 +197,22 @@ void camera_read_task(void const* args)
                     }
                     break;
                 }
+            }
+        }
+
+        // Update halt status according to DCMI status bits.
+        if (camera_state.halt_pending && ((DCMI->CR & (1 << 0)) == 0)) {
+            // DCMI just halted after a halt was pending.
+            camera_state.halt_pending = 0;
+            camera_state.halted = 1;
+
+            // Disable DCMI so that DCMI settings can be changed.
+            dcmi_disable();
+
+            // Let other processes know that DCMI has been disabled so we can start changing camera
+            // settings.
+            if (camera_state.halt_callback) {
+                camera_state.halt_callback(camera_state.halt_callback_user);
             }
         }
     }
