@@ -51,15 +51,41 @@ typedef struct camera_read_config {
         } crop_dims;
 
         // Should we pack nibbles into a byte before transmitting? true or false.
-        bool pack;
+        struct {
+            bool pack;
+        } pack_options;
 
         //
-        bool halt;
+        struct {
+            void (*halt_callback)(void**);
+            void** halt_callback_user;
+            bool halt;
+        } halt_options;
     } params;
 } camera_read_config_t;
 
 void camera_read_task(void const* args);
 
+/**
+ * Sends a request to change camera config.
+ */
 void camera_read_task_enqueue_config(const camera_read_config_t* req);
+
+// These utility methods are utility methods for accessing camera_read_task_enqueue_config.
+// They should only be called if the DCMI interface has been disabled.
+void camera_read_task_set_size(int width, int height);
+void camera_read_task_set_crop(int start_x, int start_y, int len_x, int len_y);
+void camera_read_task_enable_packing();
+void camera_read_task_disable_packing();
+
+/**
+ * Asks the camera read task to halt the DCMI interface. Blocks until this is done.
+ */
+void camera_read_task_halt_dcmi();
+
+/**
+ * Asks the camera read task to resume the DCMI interface. Blocks until this is done.
+ */
+void camera_read_task_resume_dcmi();
 
 #endif

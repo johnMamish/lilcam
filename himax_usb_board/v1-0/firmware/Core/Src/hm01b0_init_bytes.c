@@ -124,11 +124,11 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
     //
     {
         0x3064,
-        0x04,
+        0x00,
     },
     {
         0x3065,
-        0x04 ,
+        0x00 ,
     },
     //
     //

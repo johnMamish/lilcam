@@ -19,6 +19,10 @@ typedef struct camera_read_state {
     // the camera is operating. This ensures that DCMI doesn't get desynced and that camera settings
     // are only changed on a frame boundary.
     bool halt_pending, halted;
+
+    // this user-defined callback function is called when the DCMI is brought into or out of halt
+    void (*halt_callback)(void**);
+    void** halt_callback_user;
 } camera_read_state_t;
 
 // TODO by using LFSR or similar we could save 320B in flash if we had to
@@ -65,14 +69,17 @@ static void init_camera_read_state(camera_read_state_t* crs)
     crs->width = -1;
     crs->height = -1;
 
-    crs->start_x = -1;
-    crs->start_y = -1;
-    crs->len_x = -1;
-    crs->len_y = -1;
+    crs->start_x = 0;
+    crs->start_y = 0;
+    crs->len_x = 0;
+    crs->len_y = 0;
 
     crs->pack = 1;
     crs->halt_pending = 0;
     crs->halted = 1;
+
+    crs->halt_callback = NULL;
+    crs->halt_callback_user = NULL;
 }
 
 /**
@@ -83,7 +90,10 @@ static void init_camera_read_state(camera_read_state_t* crs)
 static void dcmi_crop_set(const camera_read_state_t* crs)
 {
     // handle cropping
-    bool crop_enabled = !((width == len_x) && (height == len_y) && (start_x == 0) && (start_y == 0));
+    bool crop_enabled = !((crs->width == crs->len_x) &&
+                          (crs->height == crs->len_y) &&
+                          (crs->start_x == 0) &&
+                          (crs->start_y == 0));
     if (crop_enabled) {
         // setup crop values
         DCMI->CWSIZER = (((crs->len_y - 1) << 16) | ((crs->len_x - 1) << 0));

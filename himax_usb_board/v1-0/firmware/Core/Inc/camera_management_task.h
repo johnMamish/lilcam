@@ -24,7 +24,20 @@ typedef enum camera_management_type {
     CAMERA_MANAGEMENT_TYPE_SENSOR_SEL,
 
     /**
+     * This has a bad smell because it breaks a level of abstraction: the camera_management_task
+     * will communicate with the
+     *
+     * However, it may be important for the DCMI to be halted before
+     *
+     * TODO: possibly deprecate this option.
+     */
+    CAMERA_MANAGEMENT_TYPE_DCMI_HALT,
+    CAMERA_MANAGEMENT_TYPE_DCMI_RESUME,
+
+    /**
      * Configures the frequency of the trigger and whether this camera is a controller or peripheral
+     *
+     * UNIMPLEMENTED
      */
     CAMERA_MANAGEMENT_TYPE_TRIGGER_CONFIG,
 } camera_management_type_e;
@@ -40,7 +53,6 @@ typedef struct camera_management_request {
     union {
         hm01b0_reg_write_t reg_write;
         int sensor_select;
-
         struct {
             //
             int period;

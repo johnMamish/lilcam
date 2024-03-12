@@ -42,6 +42,7 @@ void EXTI9_5_IRQHandler() {
 // TODO: if we are a trigger generator, then have a timer interrupt that triggers the other lilcam and
 // also our image sensor
 
+extern QueueHandle_t camera_management_task_config_queue;
 
 #define TG_TASK_BUFSZ 512
 osThreadId TGTaskHandle;
@@ -161,6 +162,9 @@ void camera_management_task(void const* args)
     TIM2->CCER = (1 << 8);
     TIM2->CR1 |= (1 << 0);
 
+    // TODO: tim xx channel xx is hm0360's mclk. Drive it at xxMHz.
+
+
     // let the MCLK run for a little bit before trying to do anything
     osDelay(1);
 
@@ -189,7 +193,68 @@ void camera_management_task(void const* args)
         taskYIELD();
     }
 
+    // camera read task starts halted.
+    // set up camera read task to expect 320x240 image with packing (640x240).
+    //camera_read_task();
+
+    // wait for a moment and then enable the camera read task
+    osDelay(1);
+    camera_read_task_set_size(240, 240);
+    camera_read_task_set_crop(60 * 2, 0, 240 * 2, 240);
+    camera_read_task_enable_packing();
+    camera_read_task_resume_dcmi();
+
+    while (1) {
+        // demo code: we manipulate the ROI to different 240x240 blocks to sanity check functionality.
+        osDelay(1000);
+        camera_read_task_halt_dcmi();
+        camera_read_task_set_crop(0, 0, 240 * 2, 240);
+        camera_read_task_resume_dcmi();
+
+        osDelay(1000);
+        camera_read_task_halt_dcmi();
+        camera_read_task_set_crop(60 * 2, 0, 240 * 2, 240);
+        camera_read_task_resume_dcmi();
+    }
+
+#if 0
+    while (0) {
+        // wait for a new request
+        camera_management_request_t req;
+        xQueueRecieve(camera_management_request_queue, &req, portMAX_DELAY);
+
+        switch(req.request_type) {
+            case CAMERA_MANAGEMENT_TYPE_REG_WRITE: {
+                break;
+            }
+
+            case CAMERA_MANAGEMENT_TYPE_SENSOR_SEL: {
+                // disable dcmi
+
+                // disable active sensor (necessary? maybe just leave enabled.)
+
+                // switch sensor bus
+
+                // enable inactive sensor (necessary? maybe just leave enabled.)
+
+                // adjust dcmi settings
+
+
+
+                break;
+            }
+
+            case CAMERA_MANAGEMENT_TYPE_TRIGGER_CONFIG: {
+                break;
+            }
+        }
+    }
+#endif
+}
+
+
     // start trigger generation task
+#if 0
     TaskHandle_t trigger_generation_task_handle = xTaskCreateStatic(trigger_generation_task,
                                                                     "trig gen task",
                                                                     TG_TASK_BUFSZ,
@@ -197,9 +262,4 @@ void camera_management_task(void const* args)
                                                                     osPriorityNormal,
                                                                     TGTaskBuffer,
                                                                     &TGTaskControlBlock);
-
-    while (1) {
-        // TODO: block on requests from other threads to adjust camera settings / trigger settings
-        osDelay(100);
-    }
-}
+#endif

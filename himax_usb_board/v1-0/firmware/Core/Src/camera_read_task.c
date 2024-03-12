@@ -27,7 +27,11 @@ static volatile DMA_Stream_TypeDef* dma2_stream7 __attribute__((unused)) = DMA2_
 
 volatile int framestart_flag = 0;
 
-// raw buffer to hold
+// queues for IPC are declared and initialized in main
+extern QueueHandle_t camera_read_task_config_queue;
+extern QueueHandle_t usb_request_queue;
+
+// raw buffer to hold bytes recieved directly from camera
 #define RAWBUF_WIDTH  (320 * 2)
 #define RAWBUF_HEIGHT (30)
 uint8_t camera_rawbuf[2][RAWBUF_WIDTH * RAWBUF_HEIGHT] = { 0 };
@@ -36,6 +40,10 @@ uint8_t camera_rawbuf[2][RAWBUF_WIDTH * RAWBUF_HEIGHT] = { 0 };
 #define PACKEDBUF_WIDTH (320)
 #define PACKEDBUF_HEIGHT (30)
 uint8_t camera_packedbuf[2][PACKEDBUF_WIDTH * (PACKEDBUF_HEIGHT + 1)] = { 0 };
+
+// This C file is directly included because it only includes statically defined stuff for this file.
+// Just seperated it out into a different file for readability.
+#include "camera_read_task_util.hc"
 
 TaskHandle_t footask_handle;
 int framecount = 0;
@@ -64,44 +72,31 @@ void DMA2_Stream7_IRQHandler()
     portYIELD_FROM_ISR(higher_priority_task_woken);
 }
 
-extern QueueHandle_t camera_read_task_config_queue;
-
-/**
- * Sends a request to change camera config.
- */
-void camera_read_task_enqueue_config(const camera_read_config_t* req)
-{
-    xQueueSendToBack(camera_read_task_config_queue, (const void*)req, portMAX_DELAY);
-}
-
 /**
  * The camera read task has no awareness of which camera is connected to it or how that camera is
  * connected. All it does is read images of the size its asked to and send them as a stream to USB.
+ *
+ * All camera setup is handled by camera_management_task, which also tells this task what image
+ * dimensions to expect.
  */
 void camera_read_task(void const* args)
 {
-    // note that camera sensor initialization and setup is handled by camera_management_task.
-    // This task just sits
     camera_frame_ready_semaphore = xSemaphoreCreateBinaryStatic(&camera_frame_ready_semaphore_buffer);
 
     // camera_read_task doesn't have control over how large incoming frames are, instead it needs
     // to be told by camera_management_task how large it should expect incoming frames to be.
     // This variable keeps track of those active camera settings.
     camera_read_state_t camera_state;
-    init_camera_state(&camera_state);
+    init_camera_read_state(&camera_state);
 
     // enable DMA clock
     __HAL_RCC_DMA2_CLK_ENABLE();
     __HAL_RCC_DCMI_CLK_ENABLE();
 
-    // make sure that DCMI and DMA are enabled before the hm01b0 starts sending images.
-    DCMI->CR &= 0xffe0bfff;
+    // Setup DCMI interrupt mask. DCMI interrupt is used to keep track of frame count.
     DCMI->IER = (1 << 3);
-    DCMI->CR |= (1 << 14);
 
     dma_setup_xfer();
-
-    DCMI->CR |= (1 << 0);
 
     osDelay(1);
 
@@ -148,6 +143,9 @@ void camera_read_task(void const* args)
                 // if we can't push to the queue just drop it and flash an error led
                 HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
             }
+
+            // toggle the pin as a sign of life
+            HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
         }
 
         // Update halt status according to DCMI status bits.
@@ -156,13 +154,20 @@ void camera_read_task(void const* args)
             camera_state.halt_pending = 0;
             camera_state.halted = 1;
 
-            // Disable DCMI so that
+            // Disable DCMI so that DCMI settings can be changed.
+            dcmi_disable();
+
+            // Let other processes know that DCMI has been disabled so we can start changing camera
+            // settings.
+            if (camera_state.halt_callback) {
+                camera_state.halt_callback(camera_state.halt_callback_user);
+            }
         }
 
         // If we have a request to change the camera configuration, process it now.
         // Note that if we're halted, we add in a short delay so as to not spinlock.
         // Also note that if a DCMI halt is pending, do not try to process any requests.
-        TickType_t wait_time = camera_state->halted ? 5 : 0;
+        TickType_t wait_time = camera_state.halted ? 5 : 0;
         camera_read_config_t req;
         if (!camera_state.halt_pending &&
             xQueueReceive(camera_read_task_config_queue, &req, wait_time)) {
@@ -184,31 +189,104 @@ void camera_read_task(void const* args)
                 }
 
                 case CAMERA_READ_CONFIG_SETPACKING: {
-                    camera_state.pack = req.params.pack;
+                    camera_state.pack = req.params.pack_options.pack;
                     break;
                 }
 
                 case CAMERA_READ_CONFIG_HALT: {
-                    if (req.params.halt) {
+                    camera_state.halt_callback = req.params.halt_options.halt_callback;
+                    camera_state.halt_callback_user = req.params.halt_options.halt_callback_user;
+
+                    if (req.params.halt_options.halt) {
                         // clear the DCMI's CAPTURE bit. Note that "During normal operation, if the
                         // CAPTURE bit is cleared, the DCMI captures until the end of the frame.
                         DCMI->CR &= ~(1 << 0);
                         camera_state.halt_pending = 1;
                     } else {
-                        //
+                        // start DCMI back up and alert other processes that it's started.
+                        dcmi_restart();
+                        camera_state.halted = 0;
+
+                        if (camera_state.halt_callback) {
+                            camera_state.halt_callback(camera_state.halt_callback_user);
+                        }
                     }
                     break;
                 }
             }
         }
     }
-    while (1) {
+}
 
+/**
+ * utility function that notifies a task.
+ */
+static void notifyme(void** user)
+{
+    TaskHandle_t t = (TaskHandle_t)(*user);
+    xTaskNotify(t, 0, eNoAction);
+}
 
+void camera_read_task_enqueue_config(const camera_read_config_t* req)
+{
+    xQueueSendToBack(camera_read_task_config_queue, (const void*)req, portMAX_DELAY);
+}
 
+void camera_read_task_set_size(int width, int height)
+{
+    camera_read_config_t req = {
+        .config_type = CAMERA_READ_CONFIG_SETSIZE,
+        .params.image_dims = {width, height}
+    };
+    xQueueSendToBack(camera_read_task_config_queue, (const void*)&req, portMAX_DELAY);
+}
 
+void camera_read_task_set_crop(int start_x, int start_y, int len_x, int len_y)
+{
+    camera_read_config_t req = {
+        .config_type = CAMERA_READ_CONFIG_SETCROP,
+        .params.crop_dims = {start_x, start_y, len_x, len_y}
+    };
+    xQueueSendToBack(camera_read_task_config_queue, (const void*)&req, portMAX_DELAY);
+}
 
-        // toggle the pin as a sign of life
-        //HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
-    }
+void camera_read_task_enable_packing()
+{
+    camera_read_config_t req = {
+        .config_type = CAMERA_READ_CONFIG_SETPACKING,
+        .params.pack_options = {true}
+    };
+    xQueueSendToBack(camera_read_task_config_queue, (const void*)&req, portMAX_DELAY);
+}
+
+void camera_read_task_disable_packing()
+{
+    camera_read_config_t req = {
+        .config_type = CAMERA_READ_CONFIG_SETPACKING,
+        .params.pack_options = {false}
+    };
+    xQueueSendToBack(camera_read_task_config_queue, (const void*)&req, portMAX_DELAY);
+}
+
+void camera_read_task_halt_dcmi()
+{
+    void* thistask = xTaskGetCurrentTaskHandle();
+    camera_read_config_t req = {
+        .config_type = CAMERA_READ_CONFIG_HALT,
+        .params.halt_options = {notifyme, &thistask, true}
+    };
+    xQueueSendToBack(camera_read_task_config_queue, (const void*)&req, portMAX_DELAY);
+}
+
+/**
+ * Asks the camera read task to resume the DCMI interface. Blocks until this is done.
+ */
+void camera_read_task_resume_dcmi()
+{
+    void* thistask = xTaskGetCurrentTaskHandle();
+    camera_read_config_t req = {
+        .config_type = CAMERA_READ_CONFIG_HALT,
+        .params.halt_options = {NULL, NULL, false}
+    };
+    xQueueSendToBack(camera_read_task_config_queue, (const void*)&req, portMAX_DELAY);
 }
