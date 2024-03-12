@@ -64,6 +64,8 @@ MEMORY
 {
     RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 320K
 
+    FLASH_IVT (rx) : ORIGIN = 0x08000000, LENGTH = 8
+
     /* bootloader only gets final 20 kiB of flash */
     FLASH (rx)      : ORIGIN = 0x8000000 + (64K - 20K), LENGTH = 20K
 }
@@ -71,9 +73,15 @@ MEMORY
 /* Define output sections */
 SECTIONS
 {
-    __estack = _estack;
+  .reset_vector :
+  {
+    LONG(0x20050000)
+    LONG(0x0800ffff)
+  } >FLASH_IVT
+
   /* Reserve space for vector table at start of SRAM. */
   /* SRAM vector table is loaded by code in bootloader main. */
+    __estack = _estack;
   .isr_vector :
   {
     . = ALIGN(512);

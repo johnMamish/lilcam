@@ -175,10 +175,6 @@ int main(void)
 
   // THIS CODE IS A DANGER ZONE - if power is lost in the middle, then the board will be
   // soft-bricked and will need to be reprogrammed with a SWD programmer.
-
-  // if the reset vector is our special value, we don't need to reprogram, we can just go straight
-  // to the bootloader app
-  //if (*((uint32_t*)0x08000004) != 0x0800ffff) {
   if (1) {
       // turn on LEDs to warn
       HAL_GPIO_WritePin(led0_GPIO_Port, led0_Pin, GPIO_PIN_SET);
