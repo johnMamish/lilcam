@@ -198,7 +198,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
 #endif
-
+#if 1
   osThreadStaticDef(systemTask,
                     system_task,
                     osPriorityNormal,
@@ -207,7 +207,7 @@ int main(void)
                     systemTaskBuffer,
                     &systemTaskControlBlock);
   systemTaskHandle = osThreadCreate(osThread(systemTask), NULL);
-
+#endif
 #if 1
   osThreadStaticDef(cameraTask,
                     camera_read_task,

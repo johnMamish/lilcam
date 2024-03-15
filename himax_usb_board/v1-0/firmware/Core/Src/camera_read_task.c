@@ -32,7 +32,8 @@ extern QueueHandle_t camera_read_task_config_queue;
 extern QueueHandle_t usb_request_queue;
 
 // raw buffer to hold bytes recieved directly from camera
-#define RAWBUF_WIDTH  (320 * 2)
+//#define RAWBUF_WIDTH  (320 * 2)
+#define RAWBUF_WIDTH  (320)
 #define RAWBUF_HEIGHT (30)
 uint8_t camera_rawbuf[2][RAWBUF_WIDTH * RAWBUF_HEIGHT] = { 0 };
 
@@ -132,7 +133,7 @@ void camera_read_task(void const* args)
                     packedbuf[i] = ((msn << 4) | (lsn << 0));
                 }
             } else {
-                // TODO: memcpy()
+                memcpy(packedbuf, rawbuf, (PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT));
             }
 
             // Tell USB that we've got new data for it.
@@ -174,6 +175,15 @@ void camera_read_task(void const* args)
 
                 case CAMERA_READ_CONFIG_SETPACKING: {
                     camera_state.pack = req.params.pack_options.pack;
+
+                    // DMA transfer needs to be twice as long if we're reading nybbles that need to
+                    // be packed down
+                    if (camera_state.pack) {
+                        DMA2_Stream7->NDTR = ((uint16_t)(2 * RAWBUF_WIDTH * RAWBUF_HEIGHT / 4));
+                    } else {
+                        DMA2_Stream7->NDTR = ((uint16_t)(RAWBUF_WIDTH * RAWBUF_HEIGHT / 4));
+                    }
+
                     break;
                 }
 

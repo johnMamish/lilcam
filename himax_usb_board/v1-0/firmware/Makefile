@@ -87,6 +87,7 @@ C_SOURCES += Core/Src/camera_read_task.c
 C_SOURCES += Core/Src/camera_management_task.c
 C_SOURCES += Core/Src/usb_task.c
 C_SOURCES += Core/Src/hm01b0_init_bytes.c
+C_SOURCES += Core/Src/hm0360_init_bytes.c
 
 # ASM sources
 ASM_SOURCES =  \

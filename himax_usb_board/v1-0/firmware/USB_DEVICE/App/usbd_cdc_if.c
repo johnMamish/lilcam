@@ -23,6 +23,8 @@
 
 /* USER CODE BEGIN INCLUDE */
 
+#include "FreeRTOS.h"
+
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -266,6 +268,14 @@ static int8_t CDC_Receive_HS(uint8_t* Buf, uint32_t *Len)
   /* USER CODE BEGIN 11 */
   USBD_CDC_SetRxBuffer(&hUsbDeviceHS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceHS);
+
+  //BaseType_t wake_task = pdFALSE;
+  //xQueueSendToBackFromISR(xQueue, *pvItemToQueue, &wake_task);
+
+  // This would be the correct way to exit, but because we're buried deep in the call stack, we
+  // can't do this. This code will be replaced soon, so we will just do it the wrong way for now.
+  //portYIELD_FROM_ISR(wake_task);
+
   return (USBD_OK);
   /* USER CODE END 11 */
 }
@@ -325,4 +335,3 @@ static int8_t CDC_TransmitCplt_HS(uint8_t *Buf, uint32_t *Len, uint8_t epnum)
 /**
   * @}
   */
-

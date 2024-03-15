@@ -1,6 +1,7 @@
 #include "camera_management_task.h"
 #include "usb_task.h"
 #include "hm01b0_init_bytes.h"
+#include "hm0360_init_bytes.h"
 
 #define __unused __attribute__((unused))
 
@@ -150,12 +151,23 @@ static void init_internal_hw_trig()
     HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 }
 
+void hm01b0_i2c_reset();
+void hm01b0_i2c_init();
+
+void hm0360_i2c_init();
+
+
 void camera_management_task(void const* args)
 {
     //init_internal_hw_trig();
 
     // for starters, set camera select to choose hm01b0
-    HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_SET);
+    //HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_SET);
+
+    // select and enable hm0360
+    HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(hm0360_xshut_GPIO_Port, hm0360_xshut_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(hm0360_xsleep_GPIO_Port, hm0360_xsleep_Pin, GPIO_PIN_SET);
 
     // tim2 channel 3 is hm01b0's mclk. Drive it at 12MHz.
     // tim2 runs at 96MHz. we need to divide it by 8
@@ -168,30 +180,10 @@ void camera_management_task(void const* args)
     // let the MCLK run for a little bit before trying to do anything
     osDelay(1);
 
-    // reset hm01b0
-    {
-        hm01b0_reg_write_t v = {0x0103, 0xff};
-        uint8_t buf[3] = {(v.ui16Reg & 0xff00) >> 8, (v.ui16Reg & 0x00ff) >> 0, v.ui8Val};
-        __unused HAL_StatusTypeDef err = HAL_I2C_Master_Transmit(&hi2c1, 0x24 << 1, buf, 3, 100);
+    //hm01b0_i2c_reset();
+    //hm01b0_i2c_init();
 
-        v.ui16Reg = 0x0103; v.ui8Val = 0x00;
-        buf[0] = (v.ui16Reg & 0xff00) >> 8; buf[1] = (v.ui16Reg & 0x00ff) >> 0; buf[2] = v.ui8Val;
-        err = HAL_I2C_Master_Transmit(&hi2c1, 0x24 << 1, buf, 3, 100);
-    }
-
-    // initialize hm01b0 over i2c
-    for (int i = 0; i < sizeof_hm01b0_init_values / sizeof(hm01b0_init_values[0]);) {
-        hm01b0_reg_write_t v = hm01b0_init_values[i++];
-        uint8_t buf[3] = {(v.ui16Reg & 0xff00) >> 8, (v.ui16Reg & 0x00ff) >> 0, v.ui8Val};
-
-        HAL_StatusTypeDef err = HAL_I2C_Master_Transmit(&hi2c1, 0x24 << 1, buf, 3, 100);
-
-        if (err) {
-            HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
-        }
-
-        taskYIELD();
-    }
+    hm0360_i2c_init();
 
     // camera read task starts halted.
     // set up camera read task to expect 320x240 image with packing (640x240).
@@ -199,21 +191,25 @@ void camera_management_task(void const* args)
 
     // wait for a moment and then enable the camera read task
     osDelay(1);
+    //camera_read_task_set_size(240*2, 240);
+    //camera_read_task_set_crop(60 * 2, 0, 240 * 2, 240);
     camera_read_task_set_size(240, 240);
-    camera_read_task_set_crop(60 * 2, 0, 240 * 2, 240);
-    camera_read_task_enable_packing();
+    camera_read_task_set_crop(60, 0, 240, 240);
+    camera_read_task_disable_packing();
     camera_read_task_resume_dcmi();
-
+    while(1);
     while (1) {
         // demo code: we manipulate the ROI to different 240x240 blocks to sanity check functionality.
         osDelay(1000);
         camera_read_task_halt_dcmi();
-        camera_read_task_set_crop(0, 0, 240 * 2, 240);
+        //camera_read_task_set_crop(0, 0, 240 * 2, 240);
+        camera_read_task_set_crop(0, 0, 240, 240);
         camera_read_task_resume_dcmi();
 
         osDelay(1000);
         camera_read_task_halt_dcmi();
-        camera_read_task_set_crop(60 * 2, 0, 240 * 2, 240);
+        //camera_read_task_set_crop(60 * 2, 0, 240 * 2, 240);
+        camera_read_task_set_crop(0, 0, 240, 240);
         camera_read_task_resume_dcmi();
     }
 
@@ -239,8 +235,6 @@ void camera_management_task(void const* args)
 
                 // adjust dcmi settings
 
-
-
                 break;
             }
 
@@ -250,6 +244,54 @@ void camera_management_task(void const* args)
         }
     }
 #endif
+}
+
+
+void hm01b0_i2c_reset()
+{
+    hm01b0_reg_write_t v = {0x0103, 0xff};
+    uint8_t buf[3] = {(v.ui16Reg & 0xff00) >> 8, (v.ui16Reg & 0x00ff) >> 0, v.ui8Val};
+    __unused HAL_StatusTypeDef err = HAL_I2C_Master_Transmit(&hi2c1, 0x24 << 1, buf, 3, 100);
+
+    v.ui16Reg = 0x0103; v.ui8Val = 0x00;
+    buf[0] = (v.ui16Reg & 0xff00) >> 8; buf[1] = (v.ui16Reg & 0x00ff) >> 0; buf[2] = v.ui8Val;
+    err = HAL_I2C_Master_Transmit(&hi2c1, 0x24 << 1, buf, 3, 100);
+}
+
+
+void hm01b0_i2c_init()
+{
+    // initialize hm01b0 over i2c
+    for (int i = 0; i < sizeof_hm01b0_init_values / sizeof(hm01b0_init_values[0]);) {
+        hm01b0_reg_write_t v = hm01b0_init_values[i++];
+        uint8_t buf[3] = {(v.ui16Reg & 0xff00) >> 8, (v.ui16Reg & 0x00ff) >> 0, v.ui8Val};
+
+        HAL_StatusTypeDef err = HAL_I2C_Master_Transmit(&hi2c1, 0x24 << 1, buf, 3, 100);
+
+        if (err) {
+            HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
+        }
+
+        taskYIELD();
+    }
+}
+
+
+void hm0360_i2c_init()
+{
+    // initialize hm0360 over i2c
+    for (int i = 0; i < sizeof_hm0360_init_values / sizeof(hm0360_init_values[0]);) {
+        hm0360_reg_write_t v = hm0360_init_values[i++];
+        uint8_t buf[3] = {(v.ui16Reg & 0xff00) >> 8, (v.ui16Reg & 0x00ff) >> 0, v.ui8Val};
+
+        HAL_StatusTypeDef err = HAL_I2C_Master_Transmit(&hi2c1, 0x35 << 1, buf, 3, 100);
+
+        if (err) {
+            HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
+        }
+
+        taskYIELD();
+    }
 }
 
 

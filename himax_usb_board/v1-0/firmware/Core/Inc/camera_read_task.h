@@ -36,13 +36,16 @@ typedef struct camera_read_config {
     camera_read_config_type_e config_type;
 
     union {
-        //
+        // Width and height of image.
         struct {
             int width;
             int height;
         } image_dims;
 
-        // crop start and length
+        // Crop start and length.
+        // NB: current firmware restriction requres len_x * len_y to be an integer multiple of 9600.
+        // this is due to dma transfer size - I *think* that violating this will cause some sort of
+        // frame desync of DMA stall.
         struct {
             int start_x;
             int start_y;
