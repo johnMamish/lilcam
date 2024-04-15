@@ -30,32 +30,19 @@ void usb_read_task(void const* args)
 }
 */
 
+/**
+ *
+ */
 void usb_task(void const* args)
 {
-    MX_USB_DEVICE_Init();
+    tusb_init();
 
-    /*
-    osThreadStaticDef(usbReadTask,
-                      usb_read_task,
-                      osPriorityNormal,
-                      0,
-                      USB_READ_TASK_BUFSZ,
-                      usbReadTaskBuffer,
-                      &usbReadTaskControlBlock);
-    usbReadTaskHandle = osThreadCreate(osThread(usbReadTask), NULL);
-    */
     while (1)
     {
-        // Wait until there's a new buffer to transmit
-        usb_write_request_t req;
-        xQueueReceive(usb_request_queue, &req, portMAX_DELAY);
+        // Handle non-ISR tinyusb tasks.
+        // Note that transmission of data is handled by code 'inside' of the tusb stack.
+        tud_task();
 
-        // send the request
-        uint8_t rs = CDC_Transmit_HS(req.buf, req.len);
-
-        HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_RESET);
-        if ((rs == USBD_FAIL) || (rs == USBD_BUSY)) {
-            HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
-        }
+        // TODO: Handle recieved camera config commands.
     }
 }
