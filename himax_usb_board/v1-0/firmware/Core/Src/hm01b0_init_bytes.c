@@ -201,7 +201,7 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
     // W 24 1012 00 2 1 ; Sync. enable VSYNC shift
     {
         0x1012,
-        0x01,
+        0x01
     },
 
     //
@@ -387,7 +387,7 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
     // W 24 0340 0C 2 1 ; smia frame length Hb
     {
         0x0340,
-        0x01,
+        0x02,
     },
     // W 24 0341 7A 2 1 ; smia frame length Lb 3192
     {

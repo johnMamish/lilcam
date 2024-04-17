@@ -49,10 +49,11 @@ TaskHandle_t footask_handle;
 int framecount = 0;
 void DCMI_IRQHandler()
 {
-    framestart_flag = 1;
-    DCMI->ICR = (1 << 3);
-
-    HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
+    if (DCMI->MISR & (1 << 3)) {
+        framestart_flag = 1;
+        DCMI->ICR = (1 << 3);
+        HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
+    }
 
     //BaseType_t wake_higher_priority_task = pdFALSE;
     //vTaskNotifyGiveFromISR(footask_handle, &wake_higher_priority_task);
@@ -108,7 +109,7 @@ void camera_read_task(void const* args)
             // wait til DMA is finished
             xSemaphoreTake(camera_frame_ready_semaphore, portMAX_DELAY);
 
-            // we just got some new bytes; they arrive from the hm01b0 in nibbles, so repack them
+            // Figure out which index is the backbuffer.
             int backbuf_idx = (DMA2_Stream7->CR & (1 << 19)) ? 0 : 1;
 
             // If it's the first line of a frame, then pack in a synchronization line.
@@ -116,7 +117,7 @@ void camera_read_task(void const* args)
             uint32_t buflen = PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT;
             if (framestart_flag) {
                 memcpy(packedbuf, magic, 320);
-                packedbuf = packedbuf + 320;
+                packedbuf += 320;
                 buflen += 320;
                 framestart_flag = 0;
             }
