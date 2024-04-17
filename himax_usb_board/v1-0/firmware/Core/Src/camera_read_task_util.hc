@@ -146,7 +146,7 @@ static void dma_setup_xfer()
     // 4. Configure the total number of data items to be transferred in the NDTR register.
     //DMA2_Stream7->NDTR = sizeof(camerabuf[0]);
     //DMA2_Stream7->NDTR = ((uint16_t)(324 * 244 * 2 / 4));
-    DMA2_Stream7->NDTR = ((uint16_t)(RAWBUF_WIDTH * RAWBUF_HEIGHT / 4));
+    DMA2_Stream7->NDTR = ((uint16_t)(2 * PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT / 4));
 
     // DMA2, stream 7, channel 1 is DCMI.
     // 5. Select the DMA channel (request) using CHSEL[2:0] in DMA_SxCR

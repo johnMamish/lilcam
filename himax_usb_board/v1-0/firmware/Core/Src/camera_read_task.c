@@ -31,16 +31,15 @@ volatile int framestart_flag = 0;
 extern QueueHandle_t camera_read_task_config_queue;
 extern QueueHandle_t usb_request_queue;
 
-// raw buffer to hold bytes recieved directly from camera
-//#define RAWBUF_WIDTH  (320 * 2)
-#define RAWBUF_WIDTH  (320)
-#define RAWBUF_HEIGHT (30)
-uint8_t camera_rawbuf[2][RAWBUF_WIDTH * RAWBUF_HEIGHT] = { 0 };
-
 // buffer to hold properly packed pixels for usb xfer
 #define PACKEDBUF_WIDTH (320)
 #define PACKEDBUF_HEIGHT (30)
 uint8_t camera_packedbuf[2][PACKEDBUF_WIDTH * (PACKEDBUF_HEIGHT + 1)] = { 0 };
+
+// raw buffer to hold bytes recieved directly from camera
+// same size as "packedbuf", but x2 to accommodate nybbles in "unpacked" mode.
+uint8_t camera_rawbuf[2][2 * PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT] = { 0 };
+
 
 // This C file is directly included because it only includes statically defined stuff for this file.
 // Just seperated it out into a different file for readability.
@@ -178,10 +177,11 @@ void camera_read_task(void const* args)
 
                     // DMA transfer needs to be twice as long if we're reading nybbles that need to
                     // be packed down
+                    // TODO: disable dma
                     if (camera_state.pack) {
-                        DMA2_Stream7->NDTR = ((uint16_t)(2 * RAWBUF_WIDTH * RAWBUF_HEIGHT / 4));
+                        DMA2_Stream7->NDTR = ((uint16_t)(2 * PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT / 4));
                     } else {
-                        DMA2_Stream7->NDTR = ((uint16_t)(RAWBUF_WIDTH * RAWBUF_HEIGHT / 4));
+                        DMA2_Stream7->NDTR = ((uint16_t)(PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT / 4));
                     }
 
                     break;

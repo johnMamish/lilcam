@@ -77,7 +77,7 @@ void trigger_generation_task(void* args)
             //TIM5->CR1 |= (1 << 0);
 
             // toggle LED1
-            HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
+            //HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
         }
 
         osDelay(1);
@@ -85,7 +85,7 @@ void trigger_generation_task(void* args)
         if (mode == MODE_TRIGGER_GEN) {
             // send trigger to other microcontroller
             HAL_GPIO_WritePin(gpio4_GPIO_Port, gpio4_Pin, GPIO_PIN_RESET);
-            HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
+            //HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
         }
 
         // check button
@@ -161,44 +161,55 @@ void camera_management_task(void const* args)
 {
     //init_internal_hw_trig();
 
-    // for starters, set camera select to choose hm01b0
-    //HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_SET);
-
-    // select and enable hm0360
-    HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(hm0360_xshut_GPIO_Port, hm0360_xshut_Pin, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(hm0360_xsleep_GPIO_Port, hm0360_xsleep_Pin, GPIO_PIN_SET);
-
     // tim2 channel 3 is hm01b0's mclk. Drive it at 12MHz.
     // tim2 runs at 96MHz. we need to divide it by 8
     TIM2->CCER = (1 << 8);
     TIM2->CR1 |= (1 << 0);
 
-    // TODO: tim xx channel xx is hm0360's mclk. Drive it at xxMHz.
-
-
-    // let the MCLK run for a little bit before trying to do anything
-    osDelay(1);
-
-    //hm01b0_i2c_reset();
-    //hm01b0_i2c_init();
-
-    hm0360_i2c_init();
+#define USE_HM01B0
+#if defined USE_HM01B0
+    // set camera select to choose hm01b0
+    HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_SET);
 
     // camera read task starts halted.
     // set up camera read task to expect 320x240 image with packing (640x240).
-    //camera_read_task();
+    camera_read_task_set_size(320*2, 240);
+    camera_read_task_set_crop(2*2, 2*2, 320 * 2, 240);
+    //camera_read_task_set_crop(2, 2, 320, 240);
+    //camera_read_task_set_size(320, 240);
+    //camera_read_task_enable_packing();
+
+    // let the MCLK run for a little bit and then do an i2c reset
+    osDelay(1);
+    hm01b0_i2c_reset();
+    hm01b0_i2c_init();
+#elif defined USE_HM0360
+    // select and enable hm0360
+    HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(hm0360_xshut_GPIO_Port, hm0360_xshut_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(hm0360_xsleep_GPIO_Port, hm0360_xsleep_Pin, GPIO_PIN_SET);
+
+    camera_read_task_set_crop(2, 2, 320, 240);
+    camera_read_task_set_size(320, 240);
+    camera_read_task_disable_packing();
+
+    // TODO: tim xx channel xx is hm0360's mclk. Drive it at xxMHz (?)
+
+    // let the MCLK run for a little bit and then do an i2c reset
+    osDelay(1);
+    hm0360_i2c_init();
+#else
+    while(1);
+#endif
 
     // wait for a moment and then enable the camera read task
     osDelay(1);
-    //camera_read_task_set_size(240*2, 240);
-    //camera_read_task_set_crop(60 * 2, 0, 240 * 2, 240);
-    camera_read_task_set_size(240, 240);
-    camera_read_task_set_crop(60, 0, 240, 240);
-    camera_read_task_disable_packing();
+
     camera_read_task_resume_dcmi();
+
     while(1);
-    while (1) {
+
+    while (0) {
         // demo code: we manipulate the ROI to different 240x240 blocks to sanity check functionality.
         osDelay(1000);
         camera_read_task_halt_dcmi();
@@ -295,7 +306,7 @@ void hm0360_i2c_init()
 }
 
 
-    // start trigger generation task
+// start trigger generation task
 #if 0
     TaskHandle_t trigger_generation_task_handle = xTaskCreateStatic(trigger_generation_task,
                                                                     "trig gen task",

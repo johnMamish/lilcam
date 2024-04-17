@@ -13,7 +13,7 @@ typedef enum camera_management_type {
      *
      * UNIMPLEMENTED
      */
-    CAMERA_MANAGEMENT_TYPE_REG_WRITE,
+    CAMERA_MANAGEMENT_TYPE_REG_WRITE = 0,
 
     /**
      * Selects whether the hm01b0 or the hm0360 is active.
