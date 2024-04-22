@@ -1,3 +1,6 @@
 [submodule "himax_usb_board/v1-0/firmware/tinyusb"]
 	path = himax_usb_board/v1-0/firmware/tinyusb
 	url = git@github.com:hathach/tinyusb.git
+[submodule "himax_usb_board/v1-0/firmware/nanopb"]
+	path = himax_usb_board/v1-0/firmware/nanopb
+	url = git@github.com:nanopb/nanopb.git
