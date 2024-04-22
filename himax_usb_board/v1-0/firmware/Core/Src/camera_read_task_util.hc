@@ -20,6 +20,12 @@ typedef struct camera_read_state {
     // are only changed on a frame boundary.
     bool halt_pending, halted;
 
+    // Counter of how many bytes have been transmitted this frame and also how many bytes are
+    // in each packed buffer. This lets us make sure that new frame markers are inserted at the
+    // right place
+    uint32_t byte_count;
+    uint32_t packed_buffer_size;
+
     // this user-defined callback function is called when the DCMI is brought into or out of halt
     void (*halt_callback)(void**);
     void** halt_callback_user;
@@ -77,6 +83,10 @@ static void init_camera_read_state(camera_read_state_t* crs)
     crs->pack = 1;
     crs->halt_pending = 0;
     crs->halted = 1;
+
+    crs->byte_count = 0;
+    // TODO: update this value to reflect
+    crs->packed_buffer_size = PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT;
 
     crs->halt_callback = NULL;
     crs->halt_callback_user = NULL;

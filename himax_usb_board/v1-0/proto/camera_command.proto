@@ -1,0 +1,123 @@
+/**
+ * This file contains protobufs for formatting requests from a host laptop as protobufs.
+ *
+ * Ideally, camera_management_task and camera_read_task would just use protobufs for communicating,
+ * but the code is already in place to use hand-coded structs.
+ * Perhaps down the line those tasks will be re-worked to natively use protobufs.
+ */
+syntax = "proto3";
+
+////////////////////////////////////////////////////////////////
+// Camera management requests
+////////////////////////////////////////////////////////////////
+/**
+ * Writes to an image sensor's configuration registers via camera_management_task.
+ */
+message pb_camera_management_request_reg_write {
+    // i2c address to write to. Should be 7 bits and right-aligned. r/w bit is assumed to be 0.
+    // e.g. hm01b0 has an address of 0x24, not 0x48.
+    int32 i2c_peripheral_address = 1;
+
+    // internal device address. Should be 16 bits.
+    int32 register_address = 2;
+
+    // data to write
+    int32 value = 3;
+}
+
+/**
+ * Chooses which image sensor is connected to the DCMI bus.
+ *
+ * This command also disables DCMI if it's not already disabled.
+ */
+message pb_camera_management_request_sensor_select {
+    enum sensor_select_e {
+        HM01B0 = 0;
+        HM0360 = 1;
+    }
+    sensor_select_e sensor_select = 1;
+}
+
+/**
+ * TODO: implement
+ */
+message pb_camera_management_request_trigger_config {
+
+}
+
+/**
+ * Make a request of camera_management task. An exhaustive list of potential requests can be found
+ * in camera_management_task.h:camera_management_type_e.
+ */
+message pb_camera_management_request {
+    oneof request {
+        pb_camera_management_request_reg_write reg_write = 1;
+        pb_camera_management_request_sensor_select sensor_select = 2;
+        pb_camera_management_request_trigger_config trigger_config = 3;
+    }
+}
+
+////////////////////////////////////////////////////////////////
+// Camera read requests
+// These requests reconfigure the details of the DCMI bus:
+//   - image cropping
+//   - DCMI halt / resume
+////////////////////////////////////////////////////////////////
+/**
+ * This sets the cropping and size of images read over DCMI.
+ *
+ * It must be sent whenever the image size changes due to an on-sensor ROI or a change in image
+ * sensor. It must not be sent when DCMI is active - a halt DCMI request must be completed first.
+ */
+message pb_camera_read_request_set_crop {
+    int32 start_x = 1;
+    int32 start_y = 2;
+    int32 len_x = 3;
+    int32 len_y = 4;
+}
+
+/**
+ * This message must be sent with packing = true before switching to the hm01b0 and with
+ * packing = false before switching to the hm0360.
+ *
+ * This is because the hm01b0 on this board sends data nybble-by-nybble.
+ */
+message pb_camera_read_request_set_packing {
+    bool pack = 1;
+}
+
+/**
+ * This message is used to halt and resume DCMI reads.
+ * DCMI must be halted when anything that changes the size of the image happens, this includes
+ * things like
+ *   - Setting an ROI on-sensor
+ *   - changing the image sensor
+ *   - changing
+ */
+message pb_camera_read_request_dcmi_enable {
+    // If this field is 'true', then the DCMI will be halted at the end of the current frame.
+    // If it's 'false', then the DCMI will be resumed immediately.
+    bool halt = 1;
+}
+
+/**
+ * Make a request of the camera_read task.
+ * Used for DCMI configuration and DCMI halt / resume.
+ */
+message pb_camera_read_request {
+    oneof request {
+        pb_camera_read_request_set_crop crop = 1;
+        pb_camera_read_request_set_packing pack = 2;
+        pb_camera_read_request_dcmi_enable dcmi_halt = 3;
+    }
+}
+
+////////////////////////////////////////////////////////////////
+// wrapper message
+////////////////////////////////////////////////////////////////
+message pb_camera_request {
+    oneof request {
+        pb_camera_management_request camera_management = 1;
+        pb_camera_read_request dcmi_config = 2;
+    }
+}

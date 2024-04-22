@@ -25,8 +25,6 @@ static volatile DCMI_TypeDef* dcmi __attribute__((unused)) = DCMI;
 static volatile DMA_TypeDef* dma2 __attribute__((unused)) = DMA2;
 static volatile DMA_Stream_TypeDef* dma2_stream7 __attribute__((unused)) = DMA2_Stream7;
 
-volatile int framestart_flag = 0;
-
 // queues for IPC are declared and initialized in main
 extern QueueHandle_t camera_read_task_config_queue;
 extern QueueHandle_t usb_request_queue;
@@ -46,11 +44,9 @@ uint8_t camera_rawbuf[2][2 * PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT] = { 0 };
 #include "camera_read_task_util.hc"
 
 TaskHandle_t footask_handle;
-int framecount = 0;
 void DCMI_IRQHandler()
 {
     if (DCMI->MISR & (1 << 3)) {
-        framestart_flag = 1;
         DCMI->ICR = (1 << 3);
         HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
     }
@@ -60,6 +56,7 @@ void DCMI_IRQHandler()
     //portYIELD_FROM_ISR(wake_higher_priority_task);
 }
 
+int dma_xfer_count = 0;
 void DMA2_Stream7_IRQHandler()
 {
     static BaseType_t higher_priority_task_woken;
@@ -115,11 +112,14 @@ void camera_read_task(void const* args)
             // If it's the first line of a frame, then pack in a synchronization line.
             uint8_t* packedbuf = camera_packedbuf[backbuf_idx];
             uint32_t buflen = PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT;
-            if (framestart_flag) {
+            uint32_t image_size_bytes = (camera_state.len_x * camera_state.len_y);
+            if (camera_state.pack) image_size_bytes /= 2;
+            if (camera_state.byte_count >= image_size_bytes) {
                 memcpy(packedbuf, magic, 320);
                 packedbuf += 320;
                 buflen += 320;
-                framestart_flag = 0;
+
+                camera_state.byte_count -= image_size_bytes;
             }
 
             uint8_t* rawbuf = camera_rawbuf[backbuf_idx];
@@ -132,12 +132,17 @@ void camera_read_task(void const* args)
                     const uint8_t lsn = rawbuf[(2 * i) + 0] & 0x0f;
                     packedbuf[i] = ((msn << 4) | (lsn << 0));
                 }
+
+                camera_state.byte_count += PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT;
             } else {
                 memcpy(packedbuf, rawbuf, (PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT));
+                camera_state.byte_count += PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT;
             }
 
             // Tell USB that we've got new data for it.
             usb_write_request_t req = {.buf = (void*)camera_packedbuf[backbuf_idx], .len = buflen};
+            //const uint8_t* str = "01234567890123456789\r\n";
+            //usb_write_request_t req = {.buf = (void*)str, .len = strlen(str)};
             if (xQueueSendToBack(usb_request_queue, (const void*)&req, 0) == pdTRUE) {
                 HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
             } else {
@@ -199,6 +204,7 @@ void camera_read_task(void const* args)
                         camera_state.halt_pending = 1;
                     } else {
                         // start DCMI back up and alert other processes that it's started.
+                        camera_state.byte_count = 0;
                         dcmi_restart();
                         camera_state.halted = 0;
 
@@ -234,8 +240,8 @@ void camera_read_task(void const* args)
  */
 static void notifyme(void** user)
 {
-    TaskHandle_t t = (TaskHandle_t)(*user);
-    xTaskNotify(t, 0, eNoAction);
+    SemaphoreHandle_t s = (SemaphoreHandle_t)(*user);
+    xSemaphoreGive(s);
 }
 
 void camera_read_task_enqueue_config(const camera_read_config_t* req)
@@ -281,12 +287,17 @@ void camera_read_task_disable_packing()
 
 void camera_read_task_halt_dcmi()
 {
-    void* thistask = xTaskGetCurrentTaskHandle();
+    StaticSemaphore_t sembuf;
+    SemaphoreHandle_t sem = xSemaphoreCreateBinaryStatic(&sembuf);
+
     camera_read_config_t req = {
         .config_type = CAMERA_READ_CONFIG_HALT,
-        .params.halt_options = {notifyme, &thistask, true}
+        .params.halt_options = {notifyme, &sem, true}
     };
     xQueueSendToBack(camera_read_task_config_queue, (const void*)&req, portMAX_DELAY);
+
+    // notifyme will give the semaphore when the dcmi has been halted.
+    xSemaphoreTake(sem, portMAX_DELAY);
 }
 
 /**
@@ -294,7 +305,6 @@ void camera_read_task_halt_dcmi()
  */
 void camera_read_task_resume_dcmi()
 {
-    void* thistask = xTaskGetCurrentTaskHandle();
     camera_read_config_t req = {
         .config_type = CAMERA_READ_CONFIG_HALT,
         .params.halt_options = {NULL, NULL, false}

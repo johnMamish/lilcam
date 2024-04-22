@@ -279,6 +279,7 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
     {
         0x2100,
         0x01,
+        //0x00
     },
     // W 24 2101 07 2 1 ; AE target mean
     {
@@ -349,6 +350,7 @@ const hm01b0_reg_write_t hm01b0_init_values[] = {
     {
         0x210E,
         0x03,
+        //0x00,
     },
     // W 24 210F 00 2 1 ; FS 60Hz Hb
     {

@@ -42,16 +42,30 @@ typedef enum camera_management_type {
     CAMERA_MANAGEMENT_TYPE_TRIGGER_CONFIG,
 } camera_management_type_e;
 
+
 enum {
     CAMERA_MANAGEMENT_SENSOR_SELECT_HM01B0 = 0,
     CAMERA_MANAGEMENT_SENSOR_SELECT_HM0360 = 1
 };
 
+
+typedef struct i2c_reg_write {
+    // Should be 7 bits, right-justified (i.e. r/w bit not included).
+    uint8_t peripheral_address;
+
+    // both of our sensors have 16-bit memory addresses and 8-bit data writes.
+    // This is really not the best way to represent an i2c register write, but we'll do it like
+    // this anyways to save development time.
+    uint16_t addr;
+    uint8_t data;
+} i2c_reg_write_t;
+
+
 typedef struct camera_management_request {
     camera_management_type_e request_type;
 
     union {
-        hm01b0_reg_write_t reg_write;
+        i2c_reg_write_t reg_write;
         int sensor_select;
         struct {
             //
@@ -76,4 +90,11 @@ void camera_management_task(void const* args);
  */
 void camera_management_task_enqueue_request(const camera_management_request_t* req);
 
+/**
+ * These utility functions enqueue the corresponding type of camera management request.
+ */
+void camera_management_task_reg_write(uint8_t i2c_addr, uint16_t reg_addr, uint8_t data);
+
+// "true" selects hm01b0, "false" selects hm0360.
+void camera_management_task_sensor_select(bool which);
 #endif

@@ -98,6 +98,13 @@ StaticQueue_t camera_read_task_config_queue_static;
 uint8_t camera_read_task_config_queue_storage_area[
     CAMERA_READ_TASK_CONFIG_QUEUE_ITEM_SIZE * CAMERA_READ_TASK_CONFIG_QUEUE_LENGTH];
 
+#define CAMERA_MANAGEMENT_TASK_REQUEST_QUEUE_ITEM_SIZE (sizeof(camera_management_request_t))
+#define CAMERA_MANAGEMENT_TASK_REQUEST_QUEUE_LENGTH 32
+QueueHandle_t camera_management_task_request_queue = NULL;
+StaticQueue_t camera_management_task_request_queue_static;
+uint8_t camera_management_task_request_queue_storage_area[
+    CAMERA_MANAGEMENT_TASK_REQUEST_QUEUE_ITEM_SIZE * CAMERA_MANAGEMENT_TASK_REQUEST_QUEUE_LENGTH];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -197,6 +204,12 @@ int main(void)
                                                      CAMERA_READ_TASK_CONFIG_QUEUE_ITEM_SIZE,
                                                      camera_read_task_config_queue_storage_area,
                                                      &camera_read_task_config_queue_static);
+
+  camera_management_task_request_queue = xQueueCreateStatic(CAMERA_MANAGEMENT_TASK_REQUEST_QUEUE_LENGTH,
+                                                     CAMERA_MANAGEMENT_TASK_REQUEST_QUEUE_ITEM_SIZE,
+                                                     camera_management_task_request_queue_storage_area,
+                                                     &camera_management_task_request_queue_static);
+
 
 #if 0
   /* USER CODE END RTOS_QUEUES */

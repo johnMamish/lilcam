@@ -270,14 +270,13 @@ static int8_t CDC_Receive_HS(uint8_t* Buf, uint32_t *Len)
   USBD_CDC_SetRxBuffer(&hUsbDeviceHS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceHS);
 
-  #if 0
   BaseType_t wake_task = pdFALSE;
   for (int i = 0; i < *Len; i++) {
       // queue defined in main.c
       extern QueueHandle_t usb_cdc_rx_queue;
       xQueueSendToBackFromISR(usb_cdc_rx_queue, &Buf[i], &wake_task);
   }
-#endif
+
   // This would be the correct way to exit, but because we're buried deep in the call stack, we
   // can't do this. This code will be replaced soon, so we will just do it the wrong way for now.
   //portYIELD_FROM_ISR(wake_task);

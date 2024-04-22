@@ -43,7 +43,7 @@ void EXTI9_5_IRQHandler() {
 // TODO: if we are a trigger generator, then have a timer interrupt that triggers the other lilcam and
 // also our image sensor
 
-extern QueueHandle_t camera_management_task_config_queue;
+extern QueueHandle_t camera_management_task_request_queue;
 
 #define TG_TASK_BUFSZ 512
 osThreadId TGTaskHandle;
@@ -203,35 +203,30 @@ void camera_management_task(void const* args)
 #endif
 
     // wait for a moment and then enable the camera read task
-    osDelay(1);
+    //osDelay(2000);
+    //camera_read_task_resume_dcmi();
 
-    camera_read_task_resume_dcmi();
+    // camera read task must be enabled by sending a command over serial.
 
-    while(1);
 
-    while (0) {
-        // demo code: we manipulate the ROI to different 240x240 blocks to sanity check functionality.
-        osDelay(1000);
-        camera_read_task_halt_dcmi();
-        //camera_read_task_set_crop(0, 0, 240 * 2, 240);
-        camera_read_task_set_crop(0, 0, 240, 240);
-        camera_read_task_resume_dcmi();
-
-        osDelay(1000);
-        camera_read_task_halt_dcmi();
-        //camera_read_task_set_crop(60 * 2, 0, 240 * 2, 240);
-        camera_read_task_set_crop(0, 0, 240, 240);
-        camera_read_task_resume_dcmi();
-    }
-
-#if 0
-    while (0) {
+    while (1) {
         // wait for a new request
         camera_management_request_t req;
-        xQueueRecieve(camera_management_request_queue, &req, portMAX_DELAY);
+        xQueueReceive(camera_management_task_request_queue, &req, portMAX_DELAY);
 
         switch(req.request_type) {
             case CAMERA_MANAGEMENT_TYPE_REG_WRITE: {
+                // don't disable dcmi; if a task needs to disable dcmi, it can do it itself by
+                // talking directly to the camera read task
+                uint8_t buf[3] = {
+                    (req.params.reg_write.addr & 0xff00) >> 8,
+                    (req.params.reg_write.addr & 0x00ff) >> 0,
+                    req.params.reg_write.data
+                };
+                const uint8_t i2c_addr = req.params.reg_write.peripheral_address << 1;
+                __unused HAL_StatusTypeDef err;
+                err = HAL_I2C_Master_Transmit(&hi2c1, i2c_addr, buf, 3, 100);
+
                 break;
             }
 
@@ -246,15 +241,17 @@ void camera_management_task(void const* args)
 
                 // adjust dcmi settings
 
+                // ONLY re-enable dcmi if it was enabled before.
+
                 break;
             }
 
             case CAMERA_MANAGEMENT_TYPE_TRIGGER_CONFIG: {
+                // UNIMPLEMENTED
                 break;
             }
         }
     }
-#endif
 }
 
 
@@ -305,6 +302,29 @@ void hm0360_i2c_init()
     }
 }
 
+
+void camera_management_task_enqueue_request(const camera_management_request_t* req)
+{
+    xQueueSendToBack(camera_management_task_request_queue, (const void*)req, portMAX_DELAY);
+}
+
+void camera_management_task_reg_write(uint8_t i2c_addr, uint16_t reg_addr, uint8_t data)
+{
+    camera_management_request_t req;
+    req.request_type = CAMERA_MANAGEMENT_TYPE_REG_WRITE;
+    req.params.reg_write = (i2c_reg_write_t){i2c_addr, reg_addr, data};
+    camera_management_task_enqueue_request(&req);
+}
+
+void camera_management_task_sensor_select(bool which)
+{
+    camera_management_request_t req;
+    req.request_type = CAMERA_MANAGEMENT_TYPE_SENSOR_SEL;
+    req.params.sensor_select = which ?
+        CAMERA_MANAGEMENT_SENSOR_SELECT_HM01B0:
+        CAMERA_MANAGEMENT_SENSOR_SELECT_HM0360;
+    camera_management_task_enqueue_request(&req);
+}
 
 // start trigger generation task
 #if 0
