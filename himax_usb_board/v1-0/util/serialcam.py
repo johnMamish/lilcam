@@ -5,6 +5,9 @@ import numpy as np
 import cv2
 import argparse
 
+from camera_command_pb2 import *
+
+
 def establish_serial_connection(port):
     while True:
         try:
@@ -64,6 +67,48 @@ def align_preamble(arr, preamble):
             return arr[i:]
     return arr
 
+def write_serial_with_prefix(serial, msg):
+    """
+    This system assumes all protobufs are prefixed with a 1-byte message length.
+    This function will append that message length and then transmit.
+    """
+    serial.write((len(msg) & 0xff).to_bytes(1, 'little'))
+    serial.write(msg)
+
+def write_i2c_register(serial, i2c_addr, register_addr, value):
+    # Create a reg_write request
+    reg_write_request = pb_camera_management_request_reg_write()
+    reg_write_request.i2c_peripheral_address = i2c_addr
+    reg_write_request.register_address = register_addr
+    reg_write_request.value = value
+
+    # Embed this reg_write request into a camera_management request
+    camera_management_request = pb_camera_management_request()
+    camera_management_request.reg_write.CopyFrom(reg_write_request)
+
+    # Now embed this camera_management request into the top-level pb_camera_request
+    camera_request = pb_camera_request()
+    camera_request.camera_management.CopyFrom(camera_management_request)
+
+    # To serialize the message to a byte string (for sending over a network or writing to a file)
+    serialized_data = camera_request.SerializeToString()
+    print(' '.join([f"{x:02x}" for x in serialized_data]))
+    print('\n')
+    write_serial_with_prefix(serial, serialized_data)
+
+def set_dcmi_halted(serial, halt):
+    """
+    If 'halt' is true, halts dcmi. If 'halt' is false, starts dcmi.
+    """
+    # Create a dcmi request
+    msg = pb_camera_request(
+        dcmi_config=pb_camera_read_request(
+            dcmi_halt=pb_camera_read_request_dcmi_enable(halt=halt)
+        )
+    )
+
+    write_serial_with_prefix(serial, msg.SerializeToString())
+
 def read_image_from_serial(port, width, height, upscale_factor):
     ser = establish_serial_connection(port)
     imagesize = width * height
@@ -78,11 +123,28 @@ def read_image_from_serial(port, width, height, upscale_factor):
 
     image_data = b''
 
+    # Change i2c and then start dcmi
+    set_dcmi_halted(ser, True)
+
+    # disable AE
+    write_i2c_register(ser, 0x24, 0x2100, 0x00)
+    write_i2c_register(ser, 0x24, 0x210e, 0x00)
+
+    # set exposure level
+    #write_i2c_register(ser, 0x24, 0x0205, (0 << 4))
+
+    set_dcmi_halted(ser, False)
+
+    # moving average params for monitoring FPS / data rate.
     MA_RATE = 0.05
     MA_WINDOW_LENGTH = 10
     data_rate_buffer = [0] * MA_WINDOW_LENGTH
     frame_rate_buffer = [0] * MA_WINDOW_LENGTH
     dt_buffer = [0] * MA_WINDOW_LENGTH
+    frame_count = 0
+
+
+    exp = 0
 
     while True:
         try:
@@ -104,7 +166,7 @@ def read_image_from_serial(port, width, height, upscale_factor):
 
                 data_rate = (sum(data_rate_buffer) / sum(dt_buffer)) / 1e6
                 frame_rate = sum(frame_rate_buffer) / sum(dt_buffer)
-                print(f"reading at {data_rate:6.3f} MBps and {frame_rate:6.3f} fps", end='\r')
+                #print(f"reading at {data_rate:6.3f} MBps and {frame_rate:6.3f} fps", end='\r')
                 last_time = current_time
                 total_frames_decoded = 0
                 total_bytes_read = 0
@@ -131,6 +193,13 @@ def read_image_from_serial(port, width, height, upscale_factor):
                 break
 
             image_data = image_data[framesize:]
+            frame_count += 1
+
+            if ((frame_count % 10) == 0):
+                write_i2c_register(ser, 0x24, 0x0205, ((exp & 0x03) << 4))
+                write_i2c_register(ser, 0x24, 0x0104, 1)
+
+                exp += 1
 
     ser.close()
     cv2.destroyAllWindows()
