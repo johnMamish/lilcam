@@ -258,7 +258,7 @@ class CameraInterface:
         if (len(self.image_data) > self.get_framesize()):
             image_data_no_preamble = self.image_data[len(CameraInterface.PREAMBLE):]
             image_array = np.frombuffer(image_data_no_preamble[0:self.get_imagesize()], dtype=np.uint8) \
-                                        .reshape((self.cropdims[2], self.cropdims[3]))
+                                        .reshape((self.cropdims[3], self.cropdims[2]))
             self.frame_queue.append(image_array)
             self.image_data = self.image_data[self.get_framesize():]
             self.total_frames_decoded += 1
