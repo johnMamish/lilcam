@@ -252,11 +252,11 @@ class CameraInterface:
             self.frame_rate_buffer = [0] * self.MA_WINDOW_LENGTH
             raise
 
-        self.image_data = self.__align_preamble(self.image_data, bytes(self.PREAMBLE[0:32]))
+        self.image_data = self.__align_preamble(self.image_data, self.PREAMBLE[0:32])
 
         # If we decoded a full frame, convert it to numpy and add it to our queue of images.
         if ((len(self.image_data) >= self.get_framesize()) and
-            (self.image_data[0:32] == bytes(self.PREAMBLE[0:32]))):
+            (self.image_data[0:32] == self.PREAMBLE[0:32])):
             image_data_no_preamble = self.image_data[len(CameraInterface.PREAMBLE):]
             image_array = np.frombuffer(image_data_no_preamble[0:self.get_imagesize()], dtype=np.uint8) \
                                         .reshape((self.cropdims[3], self.cropdims[2]))
@@ -283,7 +283,7 @@ class CameraInterface:
         """
         return len(self.frame_queue) > 0
 
-    PREAMBLE = [
+    PREAMBLE = bytes([
         0x48, 0xc1, 0x20, 0xa3, 0xb3, 0x94, 0x74, 0xc2, 0xa6, 0xb7,
         0xc7, 0x76, 0x1e, 0x07, 0x4c, 0x07, 0xde, 0x00, 0x46, 0x44,
         0x05, 0xc3, 0x96, 0xe6, 0xfe, 0x38, 0xc3, 0x2f, 0x1e, 0x5a,
@@ -316,4 +316,4 @@ class CameraInterface:
         0xca, 0xfe, 0x37, 0x92, 0x3f, 0xed, 0x4e, 0x0c, 0x69, 0x86,
         0x5f, 0x66, 0x59, 0xfc, 0x7a, 0x95, 0x5b, 0xcd, 0x18, 0xca,
         0x86, 0xac, 0xd4, 0xc8, 0xef, 0x8f, 0x89, 0x2b, 0xe6, 0x2d
-    ]
+    ])

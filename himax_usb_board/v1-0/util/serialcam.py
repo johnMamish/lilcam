@@ -75,8 +75,12 @@ def read_image_from_serial(args):
                 break
 
             # Save file
-            if (args.outputfile is not None):
-                cv2.imwrite(f"{args.outputfile}_{saved_frame_count:04d}.png", frame)
+            if (args.output is not None):
+                base_filename = f"{args.output}_{saved_frame_count:04d}"
+                if (args.filetype == "npy"):
+                    with open(f"{base_filename}.npy", "wb") as f: np.save(f, frame)
+                else:
+                    cv2.imwrite(f"{base_filename}.{args.filetype}", frame)
 
             saved_frame_count += 1
 
@@ -98,17 +102,32 @@ def main():
                                      "field. You should not supply the value (3 << 4) = 48.")
     parser.add_argument('port',
                         help='The name of the serial port to read from, eg /dev/ttyACM0')
+
+    # Image sensor interface size
     parser.add_argument('--width', type=int, default=320,
-                        help='Width of the image to read. Binning may affect this parameter.')
+                        help='Width of the image read from the sensor. Binning may affect this parameter.')
     parser.add_argument('--height', type=int, default=240,
-                        help='Height of the image. Binning may affect this parameter')
-    parser.add_argument('--upscale', type=int, default=2,
-                        help='Upscale factor for the image for display.')
+                        help='Height of the image read from the sensor. Binning may affect this parameter')
+
+    # TODO: add cropping args
+
+
+    # TODO: add HM0360 selection option
+
+
+    # File saving options
     parser.add_argument('--nframes', type=int, default=None,
-                        help='Number of frames to read before halting.')
-    parser.add_argument('--outputfile', type=str, default=None,
-                        help='File prefix to write frames to. If no file is specified, then images '
-                        'are not saved, just streamed to the screen.')
+                        help='Number of frames to read before halting. '
+                        'If no value is specified, then frames are read indefinately.')
+    parser.add_argument('--output', type=str, default=None,
+                        help="Prefix filename for output files. All frames will be prefixed with "
+                        "this filename.")
+    parser.add_argument('--filetype', type=str, default='npy',
+                        help="File extension to use for saving files. "
+                        "Supports npy as well as whatever cv2.imwrite() supports "
+                        "(jpg, png, tiff, pgm, etc.)")
+
+    # Image sensor config control
     parser.add_argument('--analog-gain', type=int, default=None,
                         help='Raw analog gain setting for image sensor. Refer to datasheet '
                         'for legal values and value meanings.')
@@ -126,6 +145,10 @@ def main():
                         "and 0x020f respectively, you'd do:\n"
                         "    0x020e:0x02 0x02f:0x1c\n"
                         "Note that the '0x' is optional.")
+
+    # Display options
+    parser.add_argument('--upscale', type=int, default=2,
+                        help='Upscale factor for the image for display.')
 
     args = parser.parse_args()
 
