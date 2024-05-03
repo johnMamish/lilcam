@@ -203,11 +203,11 @@ class CameraInterface:
         if (arr[0:len(preamble)] == preamble):
             return arr
 
-        matchidx = 0
         for i in range(len(arr) - len(preamble) + 1):
             if (arr[i:(i + len(preamble))] == preamble):
                 return arr[i:]
-        return arr
+
+        return b''
 
     def get_imagesize(self):
         return self.cropdims[2] * self.cropdims[3]
@@ -255,7 +255,8 @@ class CameraInterface:
         self.image_data = self.__align_preamble(self.image_data, bytes(self.PREAMBLE[0:32]))
 
         # If we decoded a full frame, convert it to numpy and add it to our queue of images.
-        if (len(self.image_data) > self.get_framesize()):
+        if ((len(self.image_data) >= self.get_framesize()) and
+            (self.image_data[0:32] == bytes(self.PREAMBLE[0:32]))):
             image_data_no_preamble = self.image_data[len(CameraInterface.PREAMBLE):]
             image_array = np.frombuffer(image_data_no_preamble[0:self.get_imagesize()], dtype=np.uint8) \
                                         .reshape((self.cropdims[3], self.cropdims[2]))
