@@ -57,10 +57,11 @@ class CameraInterface:
         return 0x24 if (self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM01B0) else 0x35
 
     def __set_image_packing(self, do_pack):
+        self.packed = do_pack
         msg = pb_camera_request(
             dcmi_config=pb_camera_read_request(
                 pack=pb_camera_read_request_set_packing(
-                    pack=do_pack
+                    pack=self.packed
                 )
             )
         )
@@ -93,6 +94,8 @@ class CameraInterface:
         Tells the camera to select an image sensor.
         The DCMI interface should be halted before calling this function.
         """
+        self.cameratype = cameratype
+
         msg = pb_camera_request(
             camera_management=pb_camera_management_request(
                 sensor_select=pb_camera_management_request_sensor_select(
@@ -110,9 +113,11 @@ class CameraInterface:
 
     def select_hm01b0(self):
         self.__select_image_sensor(pb_camera_management_request_sensor_select.sensor_select_e.HM01B0)
+        self.set_image_crop(self.cropdims[0], self.cropdims[1], self.cropdims[2], self.cropdims[3])
 
     def select_hm0360(self):
         self.__select_image_sensor(pb_camera_management_request_sensor_select.sensor_select_e.HM0360)
+        self.set_image_crop(self.cropdims[0], self.cropdims[1], self.cropdims[2], self.cropdims[3])
 
     def write_i2c_register(self, register_addr, value):
         # Create a reg_write request
@@ -158,13 +163,15 @@ class CameraInterface:
     ### sensor-specific commands
     ################################################################
     def force_command_update(self):
-        if (self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM01B0):
+        if ((self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM01B0) or
+            (self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM0360)):
             self.write_i2c_register(0x0104, 1)
         else:
             pass
 
     def disable_autoexposure(self):
-        if (self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM01B0):
+        if ((self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM01B0) or
+            (self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM0360)):
             self.write_i2c_register(0x2100, 0)
         else:
             pass
@@ -172,17 +179,21 @@ class CameraInterface:
     def enable_autoexposure(self):
         if (self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM01B0):
             self.write_i2c_register(0x2100, 1)
+        elif (self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM0360):
+            self.write_i2c_register(0x2100, 0x1f)
         else:
             pass
 
     def set_analog_gain(self, gain):
-        if (self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM01B0):
+        if ((self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM01B0) or
+            (self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM0360)):
             self.write_i2c_register(0x0205, (gain << 4))
         else:
             pass
 
     def set_digital_gain(self, gain):
-        if (self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM01B0):
+        if ((self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM01B0) or
+            (self.cameratype == pb_camera_management_request_sensor_select.sensor_select_e.HM0360)):
             self.write_i2c_register(0x020e, ((gain >> 6) & 0x03))
             self.write_i2c_register(0x020f, ((gain & 0x3f) << 2))
         else:

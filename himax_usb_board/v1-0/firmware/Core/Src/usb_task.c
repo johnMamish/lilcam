@@ -168,7 +168,7 @@ void usb_task(void const* args)
         HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_RESET);
         if ((rs == USBD_FAIL) || (rs == USBD_BUSY)) {
             //camera_read_task_halt_dcmi();
-            HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
+            // HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
         }
     }
 }

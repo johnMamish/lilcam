@@ -24,7 +24,7 @@ typedef struct camera_read_state {
     // in each packed buffer. This lets us make sure that new frame markers are inserted at the
     // right place
     uint32_t byte_count;
-    uint32_t packed_buffer_size;
+    uint32_t packed_buffer_size;         // TODO: currently unused
 
     // this user-defined callback function is called when the DCMI is brought into or out of halt
     void (*halt_callback)(void**);
@@ -86,7 +86,7 @@ static void init_camera_read_state(camera_read_state_t* crs)
 
     crs->byte_count = 0;
     // TODO: update this value to reflect
-    crs->packed_buffer_size = PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT;
+    crs->packed_buffer_size = CAMERA_BUF_WIDTH * CAMERA_BUF_HEIGHT;
 
     crs->halt_callback = NULL;
     crs->halt_callback_user = NULL;
@@ -156,7 +156,7 @@ static void dma_setup_xfer()
     // 4. Configure the total number of data items to be transferred in the NDTR register.
     //DMA2_Stream7->NDTR = sizeof(camerabuf[0]);
     //DMA2_Stream7->NDTR = ((uint16_t)(324 * 244 * 2 / 4));
-    DMA2_Stream7->NDTR = ((uint16_t)(2 * PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT / 4));
+    DMA2_Stream7->NDTR = ((uint16_t)(CAMERA_BUF_WIDTH * CAMERA_BUF_HEIGHT / 4));
 
     // DMA2, stream 7, channel 1 is DCMI.
     // 5. Select the DMA channel (request) using CHSEL[2:0] in DMA_SxCR

@@ -30,13 +30,13 @@ extern QueueHandle_t camera_read_task_config_queue;
 extern QueueHandle_t usb_request_queue;
 
 // buffer to hold properly packed pixels for usb xfer
-#define PACKEDBUF_WIDTH (320)
-#define PACKEDBUF_HEIGHT (30)
-uint8_t camera_packedbuf[2][PACKEDBUF_WIDTH * (PACKEDBUF_HEIGHT + 1)] = { 0 };
+#define CAMERA_BUF_WIDTH (320)
+#define CAMERA_BUF_HEIGHT (30)
+uint8_t camera_packedbuf[2][CAMERA_BUF_WIDTH * (CAMERA_BUF_HEIGHT + 1)] = { 0 };
 
 // raw buffer to hold bytes recieved directly from camera
 // same size as "packedbuf", but x2 to accommodate nybbles in "unpacked" mode.
-uint8_t camera_rawbuf[2][2 * PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT] = { 0 };
+uint8_t camera_rawbuf[2][CAMERA_BUF_WIDTH * CAMERA_BUF_HEIGHT] = { 0 };
 
 
 // This C file is directly included because it only includes statically defined stuff for this file.
@@ -48,7 +48,7 @@ void DCMI_IRQHandler()
 {
     if (DCMI->MISR & (1 << 3)) {
         DCMI->ICR = (1 << 3);
-        HAL_GPIO_TogglePin(led0_GPIO_Port, led0_Pin);
+        HAL_GPIO_TogglePin(led1_GPIO_Port, led1_Pin);
     }
 
     //BaseType_t wake_higher_priority_task = pdFALSE;
@@ -63,6 +63,8 @@ void DMA2_Stream7_IRQHandler()
 
     // Clear the "transfer complete" interrupt flag.
     DMA2->HIFCR = DMA_HIFCR_CTCIF7;
+
+    HAL_GPIO_TogglePin(led2_GPIO_Port, led2_Pin);
 
     // Wake up tasks waiting for an audio buffer to become ready.
     higher_priority_task_woken = pdFALSE;
@@ -94,8 +96,6 @@ void camera_read_task(void const* args)
     // Setup DCMI interrupt mask. DCMI interrupt is used to keep track of frame count.
     DCMI->IER = (1 << 3);
 
-    dma_setup_xfer();
-
     osDelay(1);
 
     while (1) {
@@ -111,7 +111,7 @@ void camera_read_task(void const* args)
 
             // If it's the first line of a frame, then pack in a synchronization line.
             uint8_t* packedbuf = camera_packedbuf[backbuf_idx];
-            uint32_t buflen = PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT;
+            uint32_t buflen = 0;
             uint32_t image_size_bytes = (camera_state.len_x * camera_state.len_y);
             if (camera_state.pack) image_size_bytes /= 2;
             if (camera_state.byte_count >= image_size_bytes) {
@@ -127,27 +127,25 @@ void camera_read_task(void const* args)
             // copy bytes from rawbuf to target buffer, packing them from nybbles to bytes if
             // appropriate.
             if (camera_state.pack) {
-                for (int i = 0; i < (PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT); i++) {
+                for (int i = 0; i < (CAMERA_BUF_WIDTH * CAMERA_BUF_HEIGHT) / 2; i++) {
                     const uint8_t msn = rawbuf[(2 * i) + 1] & 0x0f;
                     const uint8_t lsn = rawbuf[(2 * i) + 0] & 0x0f;
                     packedbuf[i] = ((msn << 4) | (lsn << 0));
                 }
 
-                camera_state.byte_count += PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT;
+                camera_state.byte_count += (CAMERA_BUF_WIDTH * CAMERA_BUF_HEIGHT) / 2;
+                buflen += (CAMERA_BUF_WIDTH * CAMERA_BUF_HEIGHT) / 2;
             } else {
-                memcpy(packedbuf, rawbuf, (PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT));
-                camera_state.byte_count += PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT;
+                memcpy(packedbuf, rawbuf, (CAMERA_BUF_WIDTH * CAMERA_BUF_HEIGHT));
+                camera_state.byte_count += CAMERA_BUF_WIDTH * CAMERA_BUF_HEIGHT;
+                buflen += (CAMERA_BUF_WIDTH * CAMERA_BUF_HEIGHT);
             }
 
             // Tell USB that we've got new data for it.
             usb_write_request_t req = {.buf = (void*)camera_packedbuf[backbuf_idx], .len = buflen};
-            //const uint8_t* str = "01234567890123456789\r\n";
-            //usb_write_request_t req = {.buf = (void*)str, .len = strlen(str)};
-            if (xQueueSendToBack(usb_request_queue, (const void*)&req, 0) == pdTRUE) {
-                HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
-            } else {
+            if (xQueueSendToBack(usb_request_queue, (const void*)&req, 0) != pdTRUE) {
                 // if we can't push to the queue just drop it and flash an error led
-                HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
+                // HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
             }
 
             // toggle the pin as a sign of life
@@ -181,15 +179,6 @@ void camera_read_task(void const* args)
                 case CAMERA_READ_CONFIG_SETPACKING: {
                     camera_state.pack = req.params.pack_options.pack;
 
-                    // DMA transfer needs to be twice as long if we're reading nybbles that need to
-                    // be packed down
-                    // TODO: disable dma
-                    if (camera_state.pack) {
-                        DMA2_Stream7->NDTR = ((uint16_t)(2 * PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT / 4));
-                    } else {
-                        DMA2_Stream7->NDTR = ((uint16_t)(PACKEDBUF_WIDTH * PACKEDBUF_HEIGHT / 4));
-                    }
-
                     break;
                 }
 
@@ -199,13 +188,17 @@ void camera_read_task(void const* args)
 
                     if (req.params.halt_options.halt) {
                         // clear the DCMI's CAPTURE bit. Note that "During normal operation, if the
-                        // CAPTURE bit is cleared, the DCMI captures until the end of the frame.
+                        // CAPTURE bit is cleared, the DCMI captures until the end of the frame."
                         DCMI->CR &= ~(1 << 0);
                         camera_state.halt_pending = 1;
                     } else {
+                        // start DMA
+                        dma_setup_xfer();
+
                         // start DCMI back up and alert other processes that it's started.
-                        camera_state.byte_count = 0;
                         dcmi_restart();
+
+                        camera_state.byte_count = 0;
                         camera_state.halted = 0;
 
                         if (camera_state.halt_callback) {
@@ -225,6 +218,10 @@ void camera_read_task(void const* args)
 
             // Disable DCMI so that DCMI settings can be changed.
             dcmi_disable();
+
+            // Halt DMA
+            DMA2_Stream7->CR &= ~(1ul << 0);
+
 
             // Let other processes know that DCMI has been disabled so we can start changing camera
             // settings.

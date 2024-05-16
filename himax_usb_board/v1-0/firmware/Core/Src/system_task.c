@@ -3,8 +3,16 @@
 void system_task(void const* args)
 {
     int resetcount = 0;
+    int count = 0;
     while (1) {
         osDelay(100);
+
+        // flash LED briefly at startup to confirm operation
+        if (count++ < 10) {
+            HAL_GPIO_TogglePin(led1_GPIO_Port, led1_Pin);
+        } else if (count == 10) {
+            HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
+        }
 
         // if the button is held for a long time, disable interrupts, disable USB, and jump to
         // bootloader
@@ -50,7 +58,7 @@ void system_task(void const* args)
             SysMemBootJump = (void (*)(void))(0x0800ffff);
             SysMemBootJump();
         } else {
-            HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_RESET);
+            //HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_RESET);
         }
     }
 }

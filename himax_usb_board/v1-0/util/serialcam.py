@@ -27,7 +27,11 @@ def read_image_from_serial(args):
 
     camera.disable_autoexposure()
 
-    camera.select_hm01b0()
+    if (args.camera_select == "hm01b0"):
+        camera.select_hm01b0()
+    elif (args.camera_select == "hm0360"):
+        camera.select_hm0360()
+
     camera.set_image_crop(2, 2, args.width, args.height)
 
     if (args.analog_gain is not None):
@@ -113,7 +117,8 @@ def main():
 
 
     # TODO: add HM0360 selection option
-
+    parser.add_argument('--camera-select', type=str, default='hm01b0', choices=['hm01b0', 'hm0360'],
+                        help="Select image sensor to read from. Can be hm01b0 or hm0360.")
 
     # File saving options
     parser.add_argument('--nframes', type=int, default=None,

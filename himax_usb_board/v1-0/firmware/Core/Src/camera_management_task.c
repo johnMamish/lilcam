@@ -36,7 +36,7 @@ void EXTI9_5_IRQHandler() {
         EXTI->PR |= (1 << 9);
 
         // toggle LED1
-        HAL_GPIO_TogglePin(led1_GPIO_Port, led1_Pin);
+        // HAL_GPIO_TogglePin(led1_GPIO_Port, led1_Pin);
     }
 }
 
@@ -166,15 +166,13 @@ void camera_management_task(void const* args)
     TIM2->CCER = (1 << 8);
     TIM2->CR1 |= (1 << 0);
 
-#define USE_HM01B0
-#if defined USE_HM01B0
     // set camera select to choose hm01b0
     HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_SET);
 
     // camera read task starts halted.
     // set up camera read task to expect 320x240 image with packing (640x240).
-    camera_read_task_set_size(320*2, 240);
-    camera_read_task_set_crop(2*2, 2*2, 320 * 2, 240);
+    //camera_read_task_set_size(320*2, 240);
+    //camera_read_task_set_crop(2*2, 2*2, 320 * 2, 240);
     //camera_read_task_set_crop(2, 2, 320, 240);
     //camera_read_task_set_size(320, 240);
     //camera_read_task_enable_packing();
@@ -183,31 +181,20 @@ void camera_management_task(void const* args)
     osDelay(1);
     hm01b0_i2c_reset();
     hm01b0_i2c_init();
-#elif defined USE_HM0360
+
     // select and enable hm0360
     HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(hm0360_xshut_GPIO_Port, hm0360_xshut_Pin, GPIO_PIN_SET);
     HAL_GPIO_WritePin(hm0360_xsleep_GPIO_Port, hm0360_xsleep_Pin, GPIO_PIN_SET);
-
-    camera_read_task_set_crop(2, 2, 320, 240);
-    camera_read_task_set_size(320, 240);
-    camera_read_task_disable_packing();
 
     // TODO: tim xx channel xx is hm0360's mclk. Drive it at xxMHz (?)
 
     // let the MCLK run for a little bit and then do an i2c reset
     osDelay(1);
     hm0360_i2c_init();
-#else
-    while(1);
-#endif
-
-    // wait for a moment and then enable the camera read task
-    //osDelay(2000);
-    //camera_read_task_resume_dcmi();
 
     // camera read task must be enabled by sending a command over serial.
-
+    // DCMI is not enabled by default.
 
     while (1) {
         // wait for a new request
@@ -236,6 +223,10 @@ void camera_management_task(void const* args)
                 // disable active sensor (necessary? maybe just leave enabled.)
 
                 // switch sensor bus
+                if (req.params.sensor_select == CAMERA_MANAGEMENT_SENSOR_SELECT_HM01B0)
+                    HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_SET);
+                else if (req.params.sensor_select == CAMERA_MANAGEMENT_SENSOR_SELECT_HM0360)
+                    HAL_GPIO_WritePin(camera_select_GPIO_Port, camera_select_Pin, GPIO_PIN_RESET);
 
                 // enable inactive sensor (necessary? maybe just leave enabled.)
 
