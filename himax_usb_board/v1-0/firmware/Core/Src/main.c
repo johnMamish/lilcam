@@ -105,6 +105,12 @@ StaticQueue_t camera_management_task_request_queue_static;
 uint8_t camera_management_task_request_queue_storage_area[
     CAMERA_MANAGEMENT_TASK_REQUEST_QUEUE_ITEM_SIZE * CAMERA_MANAGEMENT_TASK_REQUEST_QUEUE_LENGTH];
 
+#define UART7_QUEUE_ITEM_SIZE sizeof(char)
+#define UART7_QUEUE_LENGTH 512
+QueueHandle_t uart7_queue = NULL;
+StaticQueue_t uart7_queue_static;
+uint8_t uart7_queue_storage_area[UART7_QUEUE_LENGTH];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -175,6 +181,8 @@ int main(void)
   // should wait for a little bit after the timer is initialized to let the USB startup
   HAL_Delay(5);
 
+  UART7_Init();
+
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -210,6 +218,10 @@ int main(void)
                                                      camera_management_task_request_queue_storage_area,
                                                      &camera_management_task_request_queue_static);
 
+  uart7_queue = xQueueCreateStatic(UART7_QUEUE_LENGTH,
+                                         UART7_QUEUE_ITEM_SIZE,
+                                         uart7_queue_storage_area,
+                                         &uart7_queue_static);
 
 #if 0
   /* USER CODE END RTOS_QUEUES */
@@ -712,6 +724,40 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/**
+ * put UART7_TX on PF7.
+ */
+void UART7_Init()
+{
+    __HAL_RCC_UART7_CLK_ENABLE();
+
+    // init gpio
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_7;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF8_UART7;
+    HAL_GPIO_Init(GPIOF, &GPIO_InitStruct);
+
+    // init UART
+    UART7->BRR = 416;
+    UART7->CR1 |= (1 << 3) | (1 << 0);
+
+    // init NVIC for uart
+    HAL_NVIC_SetPriority(UART7_IRQn, 10, 0);
+    HAL_NVIC_EnableIRQ(UART7_IRQn);
+}
+
+
+void putch(char ch)
+{
+    // put character on queue
+    xQueueSendToBack(uart7_queue, &ch, 0);
+
+    // TXEIE
+    UART7->CR1 |= (1 << 7);
+}
 
 /* USER CODE END 4 */
 

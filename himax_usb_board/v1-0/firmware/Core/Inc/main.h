@@ -56,6 +56,10 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+/**
+ * Putch onto UART7 via an interrupt-deferred queue.
+ */
+void putch(char);
 
 /* USER CODE END EFP */
 

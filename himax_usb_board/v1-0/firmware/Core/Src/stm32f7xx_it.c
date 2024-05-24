@@ -20,6 +20,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f7xx_it.h"
+#include "cmsis_os.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -93,6 +94,21 @@ void HardFault_Handler(void)
     /* USER CODE BEGIN W1_HardFault_IRQn 0 */
     /* USER CODE END W1_HardFault_IRQn 0 */
   }
+}
+
+void UART7_IRQHandler()
+{
+    // get next character from queue and put it into the buffer
+    extern QueueHandle_t uart7_queue;
+    char ch = 0;
+    if (xQueueReceiveFromISR(uart7_queue, &ch, NULL))
+        UART7->TDR = ch;
+    else
+        UART7->CR1 &= ~(1ul << 7);
+
+    // disable interrupt if there are no chars left
+    if (uxQueueMessagesWaitingFromISR(uart7_queue) == 0)
+        UART7->CR1 &= ~(1ul << 7);
 }
 
 /**
