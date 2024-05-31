@@ -759,6 +759,15 @@ void putch(char ch)
     UART7->CR1 |= (1 << 7);
 }
 
+void putch_from_isr(char ch)
+{
+    // put character on queue
+    xQueueSendToBackFromISR(uart7_queue, &ch, NULL);
+
+    // TXEIE
+    UART7->CR1 |= (1 << 7);
+}
+
 /* USER CODE END 4 */
 
 /**

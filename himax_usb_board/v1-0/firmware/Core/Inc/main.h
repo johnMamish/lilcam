@@ -60,6 +60,7 @@ void Error_Handler(void);
  * Putch onto UART7 via an interrupt-deferred queue.
  */
 void putch(char);
+void putch_from_isr(char);
 
 /* USER CODE END EFP */
 

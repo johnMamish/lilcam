@@ -56,7 +56,7 @@ void DCMI_IRQHandler()
     //portYIELD_FROM_ISR(wake_higher_priority_task);
 }
 
-int dma_xfer_count = 0;
+volatile int dma_xfer_count = 0;
 void DMA2_Stream7_IRQHandler()
 {
     static BaseType_t higher_priority_task_woken;
@@ -64,7 +64,9 @@ void DMA2_Stream7_IRQHandler()
     // Clear the "transfer complete" interrupt flag.
     DMA2->HIFCR = DMA_HIFCR_CTCIF7;
 
-    HAL_GPIO_TogglePin(led2_GPIO_Port, led2_Pin);
+    //HAL_GPIO_TogglePin(led2_GPIO_Port, led2_Pin);
+
+    cprintf(putch_from_isr, "%i\r\n", dma_xfer_count++);
 
     // Wake up tasks waiting for an audio buffer to become ready.
     higher_priority_task_woken = pdFALSE;
@@ -97,14 +99,16 @@ void camera_read_task(void const* args)
     DCMI->IER = (1 << 3);
 
     osDelay(1);
-
+    int framecount = 0;
     while (1) {
+        uint32_t image_size_bytes = (camera_state.len_x * camera_state.len_y);
+        if (camera_state.pack) image_size_bytes /= 2;
+
         // This logic assumes that - when the DCMI is being halted - the CAPTURE bit will be
         // cleared before the newly finished DMA xfer is fully processed.
         // This is basically guaranteed, but if it were violated, would result in a race condition.
-        if (!camera_state.halted) {
-            // wait til DMA is finished
-            xSemaphoreTake(camera_frame_ready_semaphore, portMAX_DELAY);
+        if (!camera_state.halted &&
+            xSemaphoreTake(camera_frame_ready_semaphore, 10)) {
 
             // Figure out which index is the backbuffer.
             int backbuf_idx = (DMA2_Stream7->CR & (1 << 19)) ? 0 : 1;
@@ -112,9 +116,8 @@ void camera_read_task(void const* args)
             // If it's the first line of a frame, then pack in a synchronization line.
             uint8_t* packedbuf = camera_packedbuf[backbuf_idx];
             uint32_t buflen = 0;
-            uint32_t image_size_bytes = (camera_state.len_x * camera_state.len_y);
-            if (camera_state.pack) image_size_bytes /= 2;
             if (camera_state.byte_count >= image_size_bytes) {
+                cprintf(putch, "frame marker %i\r\n", framecount++);
                 memcpy(packedbuf, magic, 320);
                 packedbuf += 320;
                 buflen += 320;
@@ -124,6 +127,7 @@ void camera_read_task(void const* args)
 
             uint8_t* rawbuf = camera_rawbuf[backbuf_idx];
 
+            // TODO: allow for "split transfers", where a buffer might straddle a DMA xfer boundary.
             // copy bytes from rawbuf to target buffer, packing them from nybbles to bytes if
             // appropriate.
             if (camera_state.pack) {
@@ -140,6 +144,8 @@ void camera_read_task(void const* args)
                 camera_state.byte_count += CAMERA_BUF_WIDTH * CAMERA_BUF_HEIGHT;
                 buflen += (CAMERA_BUF_WIDTH * CAMERA_BUF_HEIGHT);
             }
+
+            cprintf(putch, "bytecount = %06i\r\n", camera_state.byte_count);
 
             // Tell USB that we've got new data for it.
             usb_write_request_t req = {.buf = (void*)camera_packedbuf[backbuf_idx], .len = buflen};
@@ -191,6 +197,7 @@ void camera_read_task(void const* args)
                         // CAPTURE bit is cleared, the DCMI captures until the end of the frame."
                         DCMI->CR &= ~(1 << 0);
                         camera_state.halt_pending = 1;
+                        cprintf(putch, "DMA halt pending=====================\r\n");
                     } else {
                         // start DMA
                         dma_setup_xfer();
@@ -198,6 +205,8 @@ void camera_read_task(void const* args)
                         // start DCMI back up and alert other processes that it's started.
                         dcmi_restart();
 
+                        cprintf(putch, "DMA resumed\r\n");
+                        xQueueReset(camera_frame_ready_semaphore);
                         camera_state.byte_count = 0;
                         camera_state.halted = 0;
 
@@ -211,7 +220,8 @@ void camera_read_task(void const* args)
         }
 
         // Update halt status according to DCMI status bits.
-        if (camera_state.halt_pending && ((DCMI->CR & (1 << 0)) == 0)) {
+        if (camera_state.halt_pending &&
+            ((DCMI->CR & (1 << 0)) == 0)) {
             // DCMI just halted after a halt was pending.
             camera_state.halt_pending = 0;
             camera_state.halted = 1;
@@ -222,6 +232,7 @@ void camera_read_task(void const* args)
             // Halt DMA
             DMA2_Stream7->CR &= ~(1ul << 0);
 
+            cprintf(putch, "DMA halted\r\n");
 
             // Let other processes know that DCMI has been disabled so we can start changing camera
             // settings.
@@ -289,7 +300,7 @@ void camera_read_task_halt_dcmi()
 
     camera_read_config_t req = {
         .config_type = CAMERA_READ_CONFIG_HALT,
-        .params.halt_options = {notifyme, &sem, true}
+        .params.halt_options = {notifyme, (void**)&sem, true}
     };
     xQueueSendToBack(camera_read_task_config_queue, (const void*)&req, portMAX_DELAY);
 

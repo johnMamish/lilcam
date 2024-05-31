@@ -1,4 +1,5 @@
 #include "system_task.h"
+#include "cprintf.h"
 
 void system_task(void const* args)
 {

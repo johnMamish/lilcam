@@ -146,6 +146,9 @@ static void dcmi_restart()
 static void dma_setup_xfer()
 {
     // TODO?: 1. make sure that the stream is disabled
+    DMA2_Stream7->CR &= ~(1ul << 0);
+    while (DMA2_Stream7->CR & (1 << 0));
+
     // 2. Set the peripheral port register address in the DMA_SxPAR register.
     DMA2_Stream7->PAR = (uint32_t)(&(DCMI->DR));
 
@@ -154,9 +157,7 @@ static void dma_setup_xfer()
     DMA2_Stream7->M1AR = (uint32_t)(camera_rawbuf[1]);
 
     // 4. Configure the total number of data items to be transferred in the NDTR register.
-    //DMA2_Stream7->NDTR = sizeof(camerabuf[0]);
-    //DMA2_Stream7->NDTR = ((uint16_t)(324 * 244 * 2 / 4));
-    DMA2_Stream7->NDTR = ((uint16_t)(CAMERA_BUF_WIDTH * CAMERA_BUF_HEIGHT / 4));
+    DMA2_Stream7->NDTR = ((uint16_t)(sizeof(camera_rawbuf[0]) / 4));
 
     // DMA2, stream 7, channel 1 is DCMI.
     // 5. Select the DMA channel (request) using CHSEL[2:0] in DMA_SxCR
